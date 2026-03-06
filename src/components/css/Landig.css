@@ -1,0 +1,137 @@
+/* GSeaLanding.css */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+.plan-card {
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.plan-card:hover {
+  background-color: #09324A !important;
+  transform: translateY(-10px);
+  color: white !important;
+}
+
+.plan-card:hover .price-text { color: white !important; }
+.plan-card:hover .check-icon { color: #FFFB08 !important; }
+.plan-card:hover .btn-plan { 
+  background-color: #FFFB08; 
+  color: #09324A; 
+  border-color: #FFFB08; 
+}
+.plan-card:hover .plan-subtitle { color: rgba(255,255,255,0.6) !important; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+}
+
+.floating { 
+  animation: float 6s ease-in-out infinite; 
+}
+
+/* ============================================================
+   PARCHE RESPONSIVE - G-SEA LANDING
+   Pegar al final de Landig.css
+   ============================================================ */
+
+/* Ajustes para Tablets (992px o menos) */
+@media (max-width: 992px) {
+    section {
+        padding-top: 5rem !important;
+        padding-bottom: 5rem !important;
+    }
+
+    .text-5xl { font-size: 3rem !important; }
+    .text-6xl { font-size: 3.5rem !important; }
+    .text-7xl { font-size: 4rem !important; }
+}
+
+/* Ajustes para Móviles Grandes y Tablets pequeñas (768px o menos) */
+@media (max-width: 768px) {
+    /* Header - Ajuste de espacio */
+    header {
+        padding-left: 1.5rem !important;
+        padding-right: 1.5rem !important;
+    }
+
+    /* Hero Section */
+    #inicio {
+        text-align: center;
+        padding-top: 8rem !important;
+        min-h: auto !important;
+    }
+    
+    #inicio .flex-col.sm\:flex-row {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    #inicio a {
+        width: 100%;
+        max-width: 300px;
+    }
+
+    /* Secciones de contenido */
+    #que-ofrecemos .max-w-7xl,
+    #contacto .max-w-6xl {
+        grid-template-cols: 1fr !important;
+        gap: 3rem !important;
+    }
+
+    .text-5xl, .text-6xl, .text-7xl {
+        font-size: 2.5rem !important;
+        line-height: 1.1 !important;
+    }
+
+    /* Reducción de bordes redondeados exagerados en móvil */
+    .rounded-\[4rem\], .rounded-\[3\.5rem\] {
+        border-radius: 2rem !important;
+    }
+
+    /* Ajuste de Cards */
+    .grid.md\:grid-cols-3 {
+        grid-template-cols: 1fr !important;
+        gap: 1.5rem !important;
+    }
+}
+
+/* Ajustes para Móviles Pequeños (480px o menos) */
+@media (max-width: 480px) {
+    .text-5xl, .text-6xl {
+        font-size: 2.2rem !important;
+    }
+
+    #inicio .text-7xl {
+        font-size: 2.5rem !important;
+    }
+
+    /* Ajuste del formulario de contacto */
+    #contacto .p-12 {
+        padding: 2rem 1.5rem !important;
+    }
+
+    /* Footer - Alineación */
+    footer .grid {
+        grid-template-cols: 1fr !important;
+        text-align: center;
+    }
+
+    footer .space-y-6 img {
+        margin: 0 auto;
+    }
+
+    /* Ajuste de precios para que no ocupen toda la pantalla de forma infinita */
+    .plan-card {
+        padding: 2.5rem 1.5rem !important;
+    }
+
+    .price-text {
+        font-size: 4rem !important;
+    }
+}
+
+/* Fix para el scroll horizontal en dispositivos iOS */
+html, body {
+    max-width: 100%;
+    overflow-x: hidden;
+}

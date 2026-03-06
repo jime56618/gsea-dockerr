@@ -1,0 +1,159 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+
+:root {
+  --gsea-midnight: #001F3F; /* Color principal del sidebar */
+  --gsea-nuit: #1E488F;
+  --gsea-spring: #DBE64C; /* Color de acento para indicadores */
+  --gsea-picket: #F3F2EA;
+  --gsea-cassiopeia: #AED0C9;
+}
+
+.gsea-auth-page-wrapper {
+  background-color: var(--gsea-picket);
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+}
+
+.gsea-auth-main-card {
+  position: relative;
+  background-color: #fff;
+  border-radius: 40px;
+  box-shadow: 0 30px 60px rgba(0,0,0,0.12);
+  width: 950px;
+  height: 600px;
+  overflow: hidden;
+  display: flex;
+}
+
+.gsea-auth-forms-container {
+  position: absolute;
+  top: 0; left: 0; width: 50%; height: 100%;
+  transition: all 0.6s cubic-bezier(0.7, 0, 0.3, 1);
+  z-index: 5;
+}
+
+.gsea-auth-mode-register .gsea-auth-forms-container { transform: translateX(100%); }
+
+.gsea-auth-form-wrapper {
+  position: absolute;
+  top: 0; width: 100%; height: 100%;
+  display: flex; flex-direction: column;
+  justify-content: center; align-items: center;
+  padding: 0 45px;
+  box-sizing: border-box;
+}
+
+.gsea-auth-register-view { opacity: 0; pointer-events: none; }
+.gsea-auth-mode-register .gsea-auth-register-view { opacity: 1; pointer-events: all; }
+.gsea-auth-mode-register .gsea-auth-login-view { opacity: 0; pointer-events: none; }
+
+.gsea-auth-title { font-size: 2.2rem; font-weight: 900; color: var(--gsea-midnight); margin: 0; letter-spacing: -1px; }
+.gsea-auth-subtitle { color: #666; font-size: 0.9rem; margin-top: 5px; margin-bottom: 25px; }
+
+.gsea-auth-form-element { width: 100%; max-width: 320px; }
+
+/* REGISTRO COMPACTO */
+.gsea-auth-register-scrollable { width: 100%; }
+.gsea-auth-grid-compact { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.gsea-auth-field { margin-bottom: 12px; text-align: left; width: 100%; }
+.gsea-auth-field label { display: block; font-size: 0.75rem; font-weight: 700; color: var(--gsea-midnight); margin-bottom: 4px; }
+
+.gsea-auth-field input, .gsea-auth-select {
+  width: 100%; padding: 11px; border: 1.5px solid #eee; border-radius: 12px;
+  outline: none; font-size: 0.85rem; font-family: 'Inter', sans-serif; box-sizing: border-box;
+}
+
+.gsea-auth-btn-primary {
+  width: 100%; padding: 13px; background: var(--gsea-nuit); color: white;
+  border: none; border-radius: 12px; font-weight: 700; cursor: pointer; margin-top: 10px; transition: 0.3s;
+}
+
+.gsea-auth-divider { width: 100%; margin: 18px 0; border-top: 1px solid #eee; text-align: center; position: relative; }
+.gsea-auth-divider span { position: relative; top: -10px; background: #fff; padding: 0 12px; font-size: 0.7rem; color: #aaa; text-transform: uppercase; }
+
+.gsea-auth-btn-google {
+  width: 100%; padding: 11px; background: white; border: 1.5px solid #eee;
+  border-radius: 12px; display: flex; align-items: center; justify-content: center; 
+  gap: 10px; font-weight: 600; cursor: pointer; font-size: 0.85rem; color: #444;
+}
+
+.gsea-auth-btn-google img {
+  width: 18px; height: 18px; object-fit: contain;
+}
+
+.gsea-auth-link { font-size: 0.75rem; color: var(--gsea-nuit); text-decoration: none; font-weight: 600; }
+.gsea-auth-footer-text { font-size: 0.85rem; color: #666; margin-top: 20px; }
+.gsea-auth-link-action { color: var(--gsea-nuit); font-weight: 700; cursor: pointer; }
+
+/* OVERLAY CON LOGO AGRANDADO */
+.gsea-auth-overlay-panel {
+  position: absolute;
+  top: 0; left: 50%; width: 50%; height: 100%;
+  background-color: var(--gsea-midnight);
+  transition: transform 0.6s cubic-bezier(0.7, 0, 0.3, 1);
+  z-index: 10; display: flex; justify-content: center; align-items: center;
+}
+
+.gsea-auth-mode-register .gsea-auth-overlay-panel { transform: translateX(-100%); }
+
+.gsea-auth-overlay-content { color: white; text-align: center; padding: 40px; }
+
+.gsea-auth-logo-box { 
+  width: 140px; /* Tamaño de logo incrementado para mayor impacto */
+  height: 140px; 
+  margin: 0 auto 15px; 
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gsea-auth-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 0 15px rgba(255,255,255,0.15)); /* Resplandor sutil */
+}
+
+.gsea-auth-brand { font-size: 2.8rem; font-weight: 900; margin: 0; letter-spacing: -1px; }
+.gsea-auth-description { color: var(--gsea-cassiopeia); margin-top: 12px; font-size: 1rem; line-height: 1.4; }
+
+/* INPUT GROUP */
+.gsea-auth-input-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.gsea-auth-input-group input {
+  padding-right: 45px !important;
+}
+
+.gsea-auth-eye-button {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #999;
+  transition: color 0.2s;
+}
+
+.gsea-auth-eye-button:hover {
+  color: var(--gsea-nuit);
+}
+
+.gsea-auth-eye-icon {
+  width: 20px;
+  height: 20px;
+}

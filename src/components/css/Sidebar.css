@@ -1,0 +1,185 @@
+/* =========================================
+   CONTENEDOR PRINCIPAL (SIDEBAR)
+   ========================================= */
+.gsea-sidebar-container {
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    background-color: #001F3F;
+    display: flex;
+    flex-direction: column;
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1000;
+    padding-bottom: 20px;
+    overflow: hidden;
+}
+
+.gsea-sidebar-container.is-expanded {
+    width: 260px;
+}
+
+.gsea-sidebar-container.is-collapsed {
+    width: 76px; /* Ajustado para dar un poco más de aire al logo */
+}
+
+/* =========================================
+   HEADER Y LOGO (EL CAMBIO PRINCIPAL)
+   ========================================= */
+.gsea-sb-header {
+    display: flex;
+    align-items: center;
+    padding: 0 15px;
+    height: 100px;      /* Altura fija para que el menú no salte */
+    flex-shrink: 0;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.gsea-sb-logo-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;     /* Evita que el logo se aplaste durante la transición */
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    
+    /* Tamaño modo colapsado */
+    width: 44px;
+    height: 44px;
+}
+
+/* Tamaño modo expandido */
+.is-expanded .gsea-sb-logo-box {
+    width: 60px;
+    height: 60px;
+}
+
+.gsea-sb-logo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.2));
+}
+
+.gsea-sb-brand-text {
+    margin-left: 15px;
+    color: white;
+    font-size: 1.2rem;
+    font-weight: 700;
+    white-space: nowrap;
+    opacity: 0;
+    animation: fadeInText 0.4s forwards;
+    animation-delay: 0.1s;
+}
+
+@keyframes fadeInText {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+/* =========================================
+   NAVEGACIÓN Y LISTA
+   ========================================= */
+.gsea-sb-nav {
+    flex: 1;
+    padding: 10px;
+    position: relative;
+}
+
+.gsea-sb-moving-indicator {
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    height: 44px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    border-left: 4px solid #DBE64C;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 0;
+}
+
+.gsea-sb-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.gsea-sb-item {
+    position: relative;
+    z-index: 1;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    border-radius: 12px;
+    color: #94a3b8;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, padding 0.3s;
+}
+
+.gsea-sb-item.is-active {
+    color: white;
+}
+
+.gsea-sb-item:hover:not(.is-active) {
+    background-color: rgba(255, 255, 255, 0.05);
+    color: #f8fafc;
+}
+
+.is-expanded .gsea-sb-item:hover:not(.is-active) {
+    padding-left: 16px; /* Desplazamiento sutil solo cuando está abierto */
+}
+
+.gsea-sb-icon-wrapper {
+    min-width: 24px;
+    display: flex;
+    justify-content: center;
+    transition: transform 0.2s ease;
+}
+
+.gsea-sb-item:hover .gsea-sb-icon-wrapper {
+    transform: scale(1.1);
+}
+
+.gsea-sb-label {
+    margin-left: 12px;
+    font-size: 0.95rem;
+    white-space: nowrap;
+    font-weight: 500;
+}
+
+/* =========================================
+   TOOLTIP Y FOOTER
+   ========================================= */
+.gsea-sb-tooltip {
+    position: absolute;
+    left: 65px;
+    background: #001F3F;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    opacity: 0;
+    pointer-events: none;
+    transition: 0.2s;
+    border: 1px solid rgba(255,255,255,0.1);
+    white-space: nowrap;
+    box-shadow: 10px 10px 20px rgba(0,0,0,0.3);
+}
+
+.gsea-sb-item:hover .gsea-sb-tooltip {
+    opacity: 1;
+    transform: translateX(10px);
+}
+
+.gsea-sb-footer {
+    padding: 10px;
+    margin-top: auto;
+    border-top: 1px solid rgba(255,255,255,0.05);
+}
+
+.gsea-sb-item.is-logout:hover {
+    background-color: rgba(248, 113, 113, 0.1) !important;
+    color: #f87171 !important;
+}

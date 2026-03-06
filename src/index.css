@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Esto asegura que el body ocupe toda la pantalla sin márgenes raros */
+body {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
