@@ -26,6 +26,13 @@ export default function SidebarGSEA() {
   ];
 
   // Función para alternar expansión
+  const handleLogout = () => {
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+  localStorage.removeItem("token_expiration");
+
+  window.location.href = "/";
+};
   const toggleExpand = () => setIsExpanded(!isExpanded);
 
   return (
@@ -172,6 +179,7 @@ export default function SidebarGSEA() {
           
           {/* Cerrar Sesión */}
           <motion.button 
+            onClick={handleLogout}
             whileHover={{ scale: 1.02, x: isExpanded ? 5 : 0 }}
             whileTap={{ scale: 0.98 }}
             className="flex items-center w-full h-11 px-3 rounded-xl hover:bg-red-500/10 text-red-400/90 hover:text-red-400 group transition-all duration-300 relative"

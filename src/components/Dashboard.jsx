@@ -35,6 +35,7 @@ function Counter({ value, isCurrency = false, isPercent = false }) {
     return () => controls.stop();
   }, [numericValue]);
 
+  
   return (
     <span>
       {isCurrency && "$"}
@@ -46,6 +47,36 @@ function Counter({ value, isCurrency = false, isPercent = false }) {
 
 export default function Dashboard() {
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
+  const [user, setUser] = useState(() => {
+  const stored = localStorage.getItem('user');
+  return stored ? JSON.parse(stored) : null;
+});
+
+  useEffect(() => {
+  const fetchUser = async () => {
+    try {
+      const token = localStorage.getItem('token');
+
+      const res = await fetch('http://localhost:8000/api/user', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json'
+        }
+      });
+
+      const data = await res.json();
+
+      // 🔥 actualiza estado y localStorage
+      setUser(data);
+      localStorage.setItem('user', JSON.stringify(data));
+
+    } catch (error) {
+      console.error('Error actualizando user:', error);
+    }
+  };
+
+  fetchUser();
+}, []);
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-[#f8f9fa] to-[#f1f4f9] font-inter overflow-x-hidden">
@@ -72,7 +103,7 @@ export default function Dashboard() {
               transition={{ delay: 0.2 }}
             >
               <h1 className="text-4xl lg:text-5xl font-black text-[#001F3F] tracking-tight leading-tight">
-                Welcome back, Carlos!
+                Welcome back, {user?.name || ''}!
               </h1>
             </motion.div>
             <motion.div
