@@ -2,17 +2,38 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './css/AuthGSEA.css';
 import logo from "../assets/images/logo-gsea.png";
+import { persistWorkspaceFromUser } from '../utils/workspaceStorage';
+
+const JSON_HEADERS = {
+  'Content-Type': 'application/json',
+  Accept: 'application/json',
+};
+
+function formatApiError(data) {
+  if (!data) return 'Error en la solicitud';
+  if (typeof data.message === 'string' && data.message) return data.message;
+  if (data.errors && typeof data.errors === 'object') {
+    const flat = Object.values(data.errors).flat().filter(Boolean);
+    if (flat.length) return String(flat[0]);
+  }
+  return 'Error en la solicitud';
+}
 
 export default function AuthGSEA() {
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [regName, setRegName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regPasswordConfirmation, setRegPasswordConfirmation] = useState('');
+  const [regWorkspace, setRegWorkspace] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const navigate = useNavigate();
 
-  const API_URL = 'http://localhost:8000/api'; 
+  const API_URL = 'http://localhost:8000/api';
   const EyeIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="gsea-auth-eye-icon">
       <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
@@ -26,86 +47,87 @@ export default function AuthGSEA() {
     </svg>
   );
 
- 
   const handleLogin = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-  setErrorMsg('');
+    e.preventDefault();
+    setLoading(true);
+    setErrorMsg('');
 
-  try {
-    const res = await fetch(`${API_URL}/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email, password }),
-    });
+    try {
+      const res = await fetch(`${API_URL}/login`, {
+        method: 'POST',
+        headers: JSON_HEADERS,
+        body: JSON.stringify({
+          email,
+          password,
+          device_name: 'web',
+        }),
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (!res.ok) {
-      // Error de API (credenciales inválidas)
-      setErrorMsg(data.message || 'Error en el login');
-      return;
+      if (!res.ok) {
+        setErrorMsg(formatApiError(data));
+        return;
+      }
+
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      persistWorkspaceFromUser(data.user);
+
+      navigate('/dashboard');
+    } catch (error) {
+      console.error(error);
+      setErrorMsg('Error de conexión con el servidor');
+    } finally {
+      setLoading(false);
     }
-
-    // Guardar token y usuario
-    localStorage.setItem('token', data.token);
-    localStorage.setItem('user', JSON.stringify(data.user));
-
-    // Redirigir
-    navigate('/dashboard');
-  } catch (error) {
-    console.error(error);
-    setErrorMsg('Error de conexión con el servidor');
-  } finally {
-    setLoading(false);
-  }
-
-  
-};
+  };
 
   const handleRegister = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-  setErrorMsg('');
+    e.preventDefault();
+    setLoading(true);
+    setErrorMsg('');
 
-  try {
-    const res = await fetch(`${API_URL}/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json',
-        Accept: 'application/json' },
-      body: JSON.stringify({ email, password, password_confirmation: password }),
-    });
+    try {
+      const res = await fetch(`${API_URL}/register`, {
+        method: 'POST',
+        headers: JSON_HEADERS,
+        body: JSON.stringify({
+          name: regName,
+          email: regEmail,
+          password: regPassword,
+          password_confirmation: regPasswordConfirmation,
+          workspace: regWorkspace,
+          device_name: 'web',
+        }),
+      });
 
-    const data = await res.json();
-    console.log("LOGIN RESPONSE:", data); 
+      const data = await res.json();
 
-    if (!res.ok) {
-      setErrorMsg(data.message || 'Error al login');
-      return;
+      if (!res.ok) {
+        setErrorMsg(formatApiError(data));
+        return;
+      }
+
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      persistWorkspaceFromUser(data.user);
+
+      navigate('/dashboard');
+    } catch (error) {
+      console.error(error);
+      setErrorMsg('Error de conexión con el servidor');
+    } finally {
+      setLoading(false);
     }
+  };
 
-    // Guardar token y usuario directo tras registro
-    localStorage.setItem('token', data.token);
-    localStorage.setItem('user', JSON.stringify(data.user));
-
-    // Redirigir al dashboard
-    navigate('/dashboard');
-  } catch (error) {
-    console.error(error);
-    setErrorMsg('Error de conexión con el servidor');
-  } finally {
-    setLoading(false);
-  }
-};
   return (
     <div className="gsea-auth-page-wrapper">
       <div className={`gsea-auth-main-card ${!isLogin ? 'gsea-auth-mode-register' : ''}`}>
 
         <div className="gsea-auth-forms-container">
 
-          {/* LOGIN VIEW */}
           {isLogin && (
             <div className="gsea-auth-form-wrapper gsea-auth-login-view">
               <h2 className="gsea-auth-title">Bienvenido</h2>
@@ -137,12 +159,12 @@ export default function AuthGSEA() {
                       onChange={(e) => setPassword(e.target.value)}
                       required
                     />
-                    <button 
-                        type="button" 
-                        className="gsea-auth-eye-button"
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? <EyeSlashIcon /> : <EyeIcon />}
+                    <button
+                      type="button"
+                      className="gsea-auth-eye-button"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <EyeSlashIcon /> : <EyeIcon />}
                     </button>
                   </div>
                 </div>
@@ -156,33 +178,59 @@ export default function AuthGSEA() {
 
               <p className="gsea-auth-footer-text">
                 ¿No tienes cuenta?{' '}
-                <span className="gsea-auth-link-action" onClick={() => setIsLogin(false)}>
+                <span
+                  className="gsea-auth-link-action"
+                  onClick={() => {
+                    setErrorMsg('');
+                    setIsLogin(false);
+                  }}
+                >
                   Regístrate aquí
                 </span>
               </p>
             </div>
           )}
 
-          {/* VISTA REGISTRO */}
           <div className="gsea-auth-form-wrapper gsea-auth-register-view">
             <h2 className="gsea-auth-title">Registro</h2>
             <p className="gsea-auth-subtitle">Crea tu cuenta de agente</p>
-            
+
             <form className="gsea-auth-form-element" onSubmit={handleRegister}>
               <div className="gsea-auth-register-scrollable">
                 <div className="gsea-auth-field">
                   <label>Nombre completo</label>
-                  <input type="text" placeholder="Nombre Apellido" required />
+                  <input
+                    type="text"
+                    placeholder="Nombre Apellido"
+                    value={regName}
+                    onChange={(e) => setRegName(e.target.value)}
+                    required
+                    autoComplete="name"
+                  />
                 </div>
                 <div className="gsea-auth-field">
                   <label>Email</label>
-                  <input type="email" placeholder="correo@ejemplo.com" required />
+                  <input
+                    type="email"
+                    placeholder="correo@ejemplo.com"
+                    value={regEmail}
+                    onChange={(e) => setRegEmail(e.target.value)}
+                    required
+                    autoComplete="email"
+                  />
                 </div>
                 <div className="gsea-auth-grid-compact">
                   <div className="gsea-auth-field">
                     <label>Contraseña</label>
                     <div className="gsea-auth-input-group">
-                      <input type={showPassword ? "text" : "password"} placeholder="••••" required autoComplete="new-password" />
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        placeholder="••••"
+                        value={regPassword}
+                        onChange={(e) => setRegPassword(e.target.value)}
+                        required
+                        autoComplete="new-password"
+                      />
                       <button type="button" className="gsea-auth-eye-button" onClick={() => setShowPassword(!showPassword)}>
                         {showPassword ? <EyeSlashIcon /> : <EyeIcon />}
                       </button>
@@ -191,7 +239,14 @@ export default function AuthGSEA() {
                   <div className="gsea-auth-field">
                     <label>Confirmar</label>
                     <div className="gsea-auth-input-group">
-                      <input type={showPassword ? "text" : "password"} placeholder="••••" required />
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        placeholder="••••"
+                        value={regPasswordConfirmation}
+                        onChange={(e) => setRegPasswordConfirmation(e.target.value)}
+                        required
+                        autoComplete="new-password"
+                      />
                       <button type="button" className="gsea-auth-eye-button" onClick={() => setShowPassword(!showPassword)}>
                         {showPassword ? <EyeSlashIcon /> : <EyeIcon />}
                       </button>
@@ -199,25 +254,41 @@ export default function AuthGSEA() {
                   </div>
                 </div>
                 <div className="gsea-auth-field">
-                  <label>Tipo de usuario</label>
-                  <select className="gsea-auth-select">
-                    <option>Agente</option>
-                    <option>Promotoría</option>
-                  </select>
+                  <label>Nombre del workspace (promotoría)</label>
+                  <input
+                    type="text"
+                    className="gsea-auth-select"
+                    placeholder="Ej. Mi promotoría"
+                    value={regWorkspace}
+                    onChange={(e) => setRegWorkspace(e.target.value)}
+                    required
+                  />
                 </div>
               </div>
-              
-              <button type="submit" className="gsea-auth-btn-primary">Crear cuenta</button>
+
+              {errorMsg && <p className="gsea-auth-error">{errorMsg}</p>}
+
+              <button type="submit" className="gsea-auth-btn-primary" disabled={loading}>
+                {loading ? 'Cargando...' : 'Crear cuenta'}
+              </button>
             </form>
 
             <p className="gsea-auth-footer-text">
-              ¿Ya tienes cuenta? 
-              <span className="gsea-auth-link-action" onClick={() => setIsLogin(true)}> Inicia sesión</span>
+              ¿Ya tienes cuenta?
+              <span
+                className="gsea-auth-link-action"
+                onClick={() => {
+                  setErrorMsg('');
+                  setIsLogin(true);
+                }}
+              >
+                {' '}
+                Inicia sesión
+              </span>
             </p>
           </div>
         </div>
 
-        {/* --- PANEL AZUL --- */}
         <div className="gsea-auth-overlay-panel">
           <div className="gsea-auth-overlay-content">
             <div className="gsea-auth-logo-box">

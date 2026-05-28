@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { persistWorkspaceFromUser } from '../utils/workspaceStorage';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Bell, Settings, X, Bug, UserPlus, 
@@ -92,7 +93,8 @@ export default function UserNavbar() {
 
         const res = await fetch('http://localhost:8000/api/user', {
           headers: {
-            Authorization: `Bearer ${token}`
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/json',
           }
         });
 
@@ -104,6 +106,7 @@ export default function UserNavbar() {
         });
 
         localStorage.setItem('user', JSON.stringify(data));
+        persistWorkspaceFromUser(data);
         setLoading(false);
 
       } catch (err) {
@@ -142,7 +145,7 @@ export default function UserNavbar() {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
-          Accept: 'application/json'
+          Accept: 'application/json',
         },
         body: formData
       });
@@ -155,6 +158,7 @@ export default function UserNavbar() {
       });
 
       localStorage.setItem('user', JSON.stringify(data));
+      persistWorkspaceFromUser(data);
       setIsEditModalOpen(false);
 
     } catch (err) {

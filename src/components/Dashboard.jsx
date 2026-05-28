@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import './css/Dashboard.css';
 import Sidebar from './Sidebar';
-import Navbar from './Navbar'; 
+import Navbar from './Navbar';
+import { persistWorkspaceFromUser } from '../utils/workspaceStorage'; 
 import { motion, animate } from 'framer-motion'; 
 import { 
   Users, ShieldCheck, BadgeDollarSign, TrendingUp, 
@@ -14,13 +15,50 @@ import {
 } from 'recharts';
 
 const COLORS = ['#DBE64C', '#f87171', '#1E488F'];
-const dataVentas = [
-  { name: 'Ene', ventas: 400 },
-  { name: 'Feb', ventas: 700 },
-  { name: 'Mar', ventas: 500 },
-  { name: 'Abr', ventas: 900 },
-  { name: 'May', ventas: 1100 },
-];
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const EMPTY_DASHBOARD = {
+  kpis: {
+    clientes_total: 0,
+    polizas_vendidas: 0,
+    prima_mensual: 0,
+    tasa_renovacion: 0,
+    polizas_vencidas: 0,
+  },
+  charts: {
+    distribucion_polizas: [
+      { name: 'Activas', value: 0 },
+      { name: 'Vencidas', value: 0 },
+      { name: 'Por vencer', value: 0 },
+    ],
+    ventas_mensuales: [],
+  },
+  operativa: {
+    cobros_pendientes: [],
+    acciones_urgentes: [],
+  },
+  objetivo: {
+    current: 0,
+    target: 25000,
+    progress_pct: 0,
+  },
+};
+
+function authHeaders() {
+  const token = localStorage.getItem('token');
+  return {
+    Accept: 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+function formatTodayLabel() {
+  const now = new Date();
+  return now.toLocaleDateString('es-MX', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'short',
+  });
+}
 
 function Counter({ value, isCurrency = false, isPercent = false }) {
   const [displayValue, setDisplayValue] = useState(0);
@@ -48,35 +86,52 @@ function Counter({ value, isCurrency = false, isPercent = false }) {
 export default function Dashboard() {
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
   const [user, setUser] = useState(() => {
-  const stored = localStorage.getItem('user');
-  return stored ? JSON.parse(stored) : null;
-});
+    const stored = localStorage.getItem('user');
+    return stored ? JSON.parse(stored) : null;
+  });
+  const [dashboard, setDashboard] = useState(EMPTY_DASHBOARD);
+  const [loadingDashboard, setLoadingDashboard] = useState(true);
 
   useEffect(() => {
-  const fetchUser = async () => {
-    try {
-      const token = localStorage.getItem('token');
+    const fetchUserAndDashboard = async () => {
+      try {
+        const [userRes, dashboardRes] = await Promise.all([
+          fetch(`${API_URL}/user`, { headers: authHeaders() }),
+          fetch(`${API_URL}/dashboard/summary`, { headers: authHeaders() }),
+        ]);
 
-      const res = await fetch('http://localhost:8000/api/user', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/json'
+        const userData = await userRes.json().catch(() => null);
+        if (userRes.ok && userData) {
+          setUser(userData);
+          localStorage.setItem('user', JSON.stringify(userData));
+          persistWorkspaceFromUser(userData);
         }
-      });
 
-      const data = await res.json();
+        const dashboardData = await dashboardRes.json().catch(() => null);
+        if (dashboardRes.ok && dashboardData) {
+          setDashboard(dashboardData);
+        } else {
+          setDashboard(EMPTY_DASHBOARD);
+        }
+      } catch (error) {
+        console.error('Error cargando dashboard:', error);
+        setDashboard(EMPTY_DASHBOARD);
+      } finally {
+        setLoadingDashboard(false);
+      }
+    };
 
-      // 🔥 actualiza estado y localStorage
-      setUser(data);
-      localStorage.setItem('user', JSON.stringify(data));
+    fetchUserAndDashboard();
+  }, []);
 
-    } catch (error) {
-      console.error('Error actualizando user:', error);
-    }
-  };
-
-  fetchUser();
-}, []);
+  const ventasData =
+    dashboard?.charts?.ventas_mensuales?.length > 0
+      ? dashboard.charts.ventas_mensuales
+      : [{ name: 'Sin datos', ventas: 0 }];
+  const distribucionPolizas = dashboard?.charts?.distribucion_polizas ?? EMPTY_DASHBOARD.charts.distribucion_polizas;
+  const cobrosPendientes = dashboard?.operativa?.cobros_pendientes ?? [];
+  const accionesUrgentes = dashboard?.operativa?.acciones_urgentes ?? [];
+  const objetivo = dashboard?.objetivo ?? EMPTY_DASHBOARD.objetivo;
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-[#f8f9fa] to-[#f1f4f9] font-inter overflow-x-hidden">
@@ -115,17 +170,17 @@ export default function Dashboard() {
               <div className="h-6 w-1 bg-[#1E488F] rounded-full"></div>
               <p className="text-gray-500 font-medium flex items-center gap-2 text-sm lg:text-base">
                 <Clock size={16} className="text-[#1E488F]" />
-                Tu día empieza ahora — Jueves, 26 Oct
+                Tu día empieza ahora — {formatTodayLabel()}
               </p>
             </motion.div>
           </header>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5 mb-10">
-            <StatCard title="Clientes Totales" value="1452" icon={Users} color="bg-[#AED0C9]" trend="+8%" />
-            <StatCard title="Pólizas Vendidas" value="85" icon={ShieldCheck} color="bg-[#DBE64C]" trend="+15%" />
-            <StatCard title="Prima Mensual" value="14500" icon={BadgeDollarSign} color="bg-[#1E488F]" trend="-3%" isNegative isCurrency />
-            <StatCard title="Tasa Renovación" value="88" icon={TrendingUp} color="bg-purple-500" trend="+2%" isPercent />
-            <StatCard title="Pólizas Vencidas" value="18" icon={AlertCircle} color="bg-red-500" trend="CRÍTICO" isAlert />
+            <StatCard title="Clientes Totales" value={dashboard.kpis.clientes_total} icon={Users} color="bg-[#AED0C9]" trend="LIVE" />
+            <StatCard title="Pólizas Vendidas" value={dashboard.kpis.polizas_vendidas} icon={ShieldCheck} color="bg-[#DBE64C]" trend="LIVE" />
+            <StatCard title="Prima Mensual" value={dashboard.kpis.prima_mensual} icon={BadgeDollarSign} color="bg-[#1E488F]" trend="LIVE" isCurrency />
+            <StatCard title="Tasa Renovación" value={dashboard.kpis.tasa_renovacion} icon={TrendingUp} color="bg-purple-500" trend="LIVE" isPercent />
+            <StatCard title="Pólizas Vencidas" value={dashboard.kpis.polizas_vencidas} icon={AlertCircle} color="bg-red-500" trend="ATENCIÓN" isAlert />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -151,7 +206,7 @@ export default function Dashboard() {
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie 
-                          data={[{ name: 'Activas', value: 60 }, { name: 'Vencidas', value: 15 }, { name: 'Pendientes', value: 25 }]} 
+                          data={distribucionPolizas} 
                           innerRadius={70} outerRadius={90} paddingAngle={8} dataKey="value" stroke="none"
                         >
                           {COLORS.map((_, index) => <Cell key={index} fill={COLORS[index]} />)}
@@ -175,7 +230,7 @@ export default function Dashboard() {
                   </div>
                   <div className="h-[280px] transform transition-transform hover:scale-[1.02] duration-300">
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={dataVentas}>
+                      <AreaChart data={ventasData}>
                         <defs>
                           <linearGradient id="colorV" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor="#DBE64C" stopOpacity={0.3}/>
@@ -223,12 +278,12 @@ export default function Dashboard() {
                     <p className="text-xs text-gray-400 mt-1">Progreso acumulado del período</p>
                   </div>
                   <span className="text-xs font-bold text-green-600 bg-green-50 px-4 py-2 rounded-full shadow-sm">
-                    Meta: $20,000
+                    Meta: ${Number(objetivo.target || 0).toLocaleString('es-MX')}
                   </span>
                 </div>
                 <div className="h-[200px] w-full transform transition-transform hover:scale-[1.01] duration-300">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={dataVentas}>
+                    <AreaChart data={ventasData}>
                       <Tooltip 
                         contentStyle={{ 
                           borderRadius: '12px', 
@@ -277,8 +332,12 @@ export default function Dashboard() {
                         Cobros Pendientes
                       </p>
                     </div>
-                    <ActivityItem name="Juan Pérez" detail="Auto #E234 - $250" time="Hoy" type="cobro" />
-                    <ActivityItem name="Pedro Ruiz" detail="Hogar #V552 - $80" time="Vencido" type="mora" />
+                    {cobrosPendientes.length === 0 && (
+                      <ActivityItem name="Sin cobros pendientes" detail={loadingDashboard ? 'Cargando...' : 'Todo al corriente'} time="—" type="cobro" />
+                    )}
+                    {cobrosPendientes.slice(0, 2).map((item) => (
+                      <ActivityItem key={item.id} name={item.name} detail={item.detail} time={item.time} type={item.type} />
+                    ))}
                   </div>
 
                   <div className="space-y-3">
@@ -288,8 +347,12 @@ export default function Dashboard() {
                         <FileWarning size={12} /> Acciones Urgentes
                       </p>
                     </div>
-                    <UrgentItem title="Renovar Póliza #E234" client="Nadia R." tag="30 días" />
-                    <UrgentItem title="Cargar Documentación" client="Luis M." tag="Pendiente" isAlert />
+                    {accionesUrgentes.length === 0 && (
+                      <UrgentItem title="Sin acciones urgentes" client="Buen trabajo" tag="OK" />
+                    )}
+                    {accionesUrgentes.slice(0, 2).map((item) => (
+                      <UrgentItem key={item.id} title={item.title} client={item.client} tag={item.tag} isAlert={item.isAlert} />
+                    ))}
                   </div>
                 </div>
               </motion.div>
@@ -312,17 +375,17 @@ export default function Dashboard() {
                   </div>
                   <div className="flex items-end justify-between mb-4">
                     <span className="text-4xl font-black text-[#DBE64C] tracking-tight">
-                      $18,300
+                      ${Number(objetivo.current || 0).toLocaleString('es-MX')}
                     </span>
                     <span className="text-white/40 text-xs font-medium mb-1">
-                      Target: $25k
+                      Target: ${Number(objetivo.target || 0).toLocaleString('es-MX')}
                     </span>
                   </div>
                   <div className="relative mb-3">
                     <div className="w-full bg-white/10 h-3 rounded-full overflow-hidden border border-white/5">
                       <motion.div 
                         initial={{ width: 0 }}
-                        animate={{ width: '73%' }}
+                        animate={{ width: `${Number(objetivo.progress_pct || 0)}%` }}
                         transition={{ duration: 1.5, ease: "easeOut" }}
                         className="bg-gradient-to-r from-[#DBE64C] to-[#f5ff8c] h-full rounded-full shadow-[0_0_20px_rgba(219,230,76,0.3)]" 
                       />
@@ -330,7 +393,7 @@ export default function Dashboard() {
                   </div>
                   <div className="flex justify-between items-center">
                     <p className="text-blue-100/40 text-[10px] font-medium uppercase tracking-wider">
-                      73% completado
+                      {Number(objetivo.progress_pct || 0)}% completado
                     </p>
                     <div className="flex gap-1">
                       <div className="h-1 w-1 rounded-full bg-[#DBE64C]/50"></div>

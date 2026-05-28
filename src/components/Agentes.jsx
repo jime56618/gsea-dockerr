@@ -1,4 +1,4 @@
-import React, { useState, useMemo, Fragment } from 'react';
+import React, { useEffect, useState, useMemo, Fragment, useCallback } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -22,68 +22,243 @@ import './css/Agentes.css';
 
 export default function SeccionAgentes() {
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
-  
-  const [data, setData] = useState(initialData);
+  const [data, setData] = useState([]);
+  const [aseguradoras, setAseguradoras] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [globalFilter, setGlobalFilter] = useState('');
   const [sorting, setSorting] = useState([]);
-  
-
   const [filtroEstado, setFiltroEstado] = useState('todos');
   const [filtroEmpresa, setFiltroEmpresa] = useState('todos');
   const [ordenamiento, setOrdenamiento] = useState('reciente');
-  
-  // Estados Modales
+  const API_URL = 'http://localhost:8000/api';
+
   const [agentToEdit, setAgentToEdit] = useState(null);
   const [agentToDelete, setAgentToDelete] = useState(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [apiError, setApiError] = useState('');
+  const [formData, setFormData] = useState({
+    cedula: '',
+    nombre: '',
+    apellido: '',
+    email: '',
+    telefono: '',
+    ciudad: '',
+    estado: '',
+    direccion: '',
+    curp: '',
+    rfc: '',
+    fecha_nacimiento: '',
+    fecha_alta: '',
+    status: 'activo',
+    claves: [{ aseguradora_id: '', clave_agente: '' }],
+  });
+
+  const safeParse = (value) => {
+    try {
+      return value ? JSON.parse(value) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const getAuthContext = () => {
+    const token = localStorage.getItem('token');
+    const workspaceRaw = localStorage.getItem('workspace_activo');
+    const currentIdRaw = localStorage.getItem('current_workspace_id');
+    const userRaw = localStorage.getItem('user');
+    const workspace = safeParse(workspaceRaw);
+    const user = safeParse(userRaw);
+    const fromStorageId = currentIdRaw ? Number(currentIdRaw) : null;
+    const workspaceId =
+      workspace?.id ||
+      (Number.isFinite(fromStorageId) ? fromStorageId : null) ||
+      user?.current_workspace_id ||
+      user?.workspace_id ||
+      user?.workspace?.id ||
+      (Array.isArray(user?.workspaces) ? user.workspaces[0]?.id : null);
+    return { token, workspaceId };
+  };
+
+  const normalizeWorkspaceAgent = (item) => ({
+    id: item.id,
+    workspace_id: item.workspace_id,
+    agente_id: item.agente_id,
+    status: item.status || 'activo',
+    nombreCompleto: `${item.agente?.nombre || ''} ${item.agente?.apellido || ''}`.trim(),
+    nombre: item.agente?.nombre || '',
+    apellido: item.agente?.apellido || '',
+    cedula: item.agente?.cedula || '',
+    email: item.agente?.email || '',
+    telefono: item.agente?.telefono || '',
+    ciudad: item.agente?.ciudad || '',
+    estado: item.agente?.estado || '',
+    direccion: item.agente?.direccion || '',
+    curp: item.agente?.curp || '',
+    rfc: item.agente?.rfc || '',
+    fecha_nacimiento: item.agente?.fecha_nacimiento || '',
+    fecha_alta: item.agente?.fecha_alta || '',
+    claves_aseguradora: item.claves_aseguradora || [],
+  });
+
+  const resetForm = () => {
+    setFormData({
+      cedula: '',
+      nombre: '',
+      apellido: '',
+      email: '',
+      telefono: '',
+      ciudad: '',
+      estado: '',
+      direccion: '',
+      curp: '',
+      rfc: '',
+      fecha_nacimiento: '',
+      fecha_alta: '',
+      status: 'activo',
+      claves: [{ aseguradora_id: '', clave_agente: '' }],
+    });
+  };
+
+  const openAddModal = () => {
+    setApiError('');
+    resetForm();
+    setIsAddModalOpen(true);
+  };
+
+  const openEditModal = (agent) => {
+    setApiError('');
+    setFormData({
+      cedula: agent.cedula || '',
+      nombre: agent.nombre || '',
+      apellido: agent.apellido || '',
+      email: agent.email || '',
+      telefono: agent.telefono || '',
+      ciudad: agent.ciudad || '',
+      estado: agent.estado || '',
+      direccion: agent.direccion || '',
+      curp: agent.curp || '',
+      rfc: agent.rfc || '',
+      fecha_nacimiento: agent.fecha_nacimiento || '',
+      fecha_alta: agent.fecha_alta || '',
+      status: agent.status || 'activo',
+      claves: (agent.claves_aseguradora || []).length
+        ? agent.claves_aseguradora.map((c) => ({
+            aseguradora_id: String(c.aseguradora_id || ''),
+            clave_agente: c.clave_agente || '',
+          }))
+        : [{ aseguradora_id: '', clave_agente: '' }],
+    });
+    setAgentToEdit(agent);
+  };
 
   const empresas = useMemo(() => {
-    const unique = [...new Set(data.map(item => item.empresa))];
+    const unique = [
+      ...new Set(
+        data.flatMap((item) =>
+          (item.claves_aseguradora || [])
+            .map((clave) => clave.aseguradora?.nombre)
+            .filter(Boolean)
+        )
+      ),
+    ];
     return ['todos', ...unique];
   }, [data]);
 
-  // Aplicar filtros a los datos
+  const fetchAgentes = useCallback(async () => {
+    try {
+      const { token, workspaceId } = getAuthContext();
+      setApiError('');
+      if (!token) {
+        setApiError('No hay sesión activa.');
+        setLoading(false);
+        return;
+      }
+      if (!workspaceId) {
+        setApiError('No se detectó workspace activo.');
+        setLoading(false);
+        return;
+      }
+      const res = await fetch(`${API_URL}/agentes_workspace?workspace_id=${workspaceId}&per_page=15`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setApiError(json?.message || 'Error al cargar agentes.');
+        setData([]);
+        return;
+      }
+      setData((json.data || []).map(normalizeWorkspaceAgent));
+    } catch (error) {
+      console.error('Error cargando agentes:', error);
+      setApiError('Error de conexión con el servidor.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const fetchAseguradoras = useCallback(async () => {
+    try {
+      const { token } = getAuthContext();
+      if (!token) return;
+      const res = await fetch(`${API_URL}/aseguradoras?per_page=100`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+      });
+      const json = await res.json();
+      if (res.ok) setAseguradoras(json.data || []);
+    } catch (error) {
+      console.error('Error cargando aseguradoras:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAgentes();
+    fetchAseguradoras();
+  }, [fetchAgentes, fetchAseguradoras]);
+
   const datosFiltrados = useMemo(() => {
     let filtered = [...data];
-
-    // Filtro por estado
     if (filtroEstado !== 'todos') {
-      filtered = filtered.filter(item => item.estado === filtroEstado);
+      filtered = filtered.filter((item) => item.status === filtroEstado);
     }
-
-    // Filtro por empresa
     if (filtroEmpresa !== 'todos') {
-      filtered = filtered.filter(item => item.empresa === filtroEmpresa);
+      filtered = filtered.filter((item) =>
+        (item.claves_aseguradora || []).some(
+          (clave) => clave.aseguradora?.nombre === filtroEmpresa
+        )
+      );
     }
-
-    // Ordenamiento
     switch (ordenamiento) {
       case 'reciente':
-        // Asumiendo que los IDs más altos son más recientes
         filtered.sort((a, b) => b.id - a.id);
         break;
       case 'antiguo':
         filtered.sort((a, b) => a.id - b.id);
         break;
       case 'nombre':
-        filtered.sort((a, b) => a.nombre.localeCompare(b.nombre));
+        filtered.sort((a, b) => a.nombreCompleto.localeCompare(b.nombreCompleto));
         break;
       default:
         break;
     }
-
     return filtered;
   }, [data, filtroEstado, filtroEmpresa, ordenamiento]);
 
   const stats = useMemo(() => ({
     total: datosFiltrados.length,
-    activos: datosFiltrados.filter(a => a.estado === 'Activo').length,
-    inactivos: datosFiltrados.filter(a => a.estado === 'Inactivo').length
+    activos: datosFiltrados.filter((a) => a.status === 'activo').length,
+    inactivos: datosFiltrados.filter((a) => a.status === 'inactivo').length,
   }), [datosFiltrados]);
 
   const columns = useMemo(() => [
     {
-      accessorKey: 'nombre',
+      accessorKey: 'nombreCompleto',
       header: 'Agente',
       cell: info => (
         <div className="agents-agent-cell">
@@ -112,11 +287,7 @@ export default function SeccionAgentes() {
         </div>
       ),
     },
-    { 
-      accessorKey: 'empresa', 
-      header: 'Empresa', 
-      cell: info => <span className="agents-company-badge">{info.getValue()}</span> 
-    },
+    { accessorKey: 'cedula', header: 'Cédula' },
     { 
       accessorKey: 'telefono', 
       header: 'Teléfono', 
@@ -130,10 +301,33 @@ export default function SeccionAgentes() {
     {
       accessorKey: 'estado',
       header: 'Estado',
+      cell: info => <span className="agents-city-text">{info.getValue()}</span>,
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
       cell: info => (
-        <span className={`agents-status-badge ${info.getValue() === 'Activo' ? 'agents-status-active' : 'agents-status-inactive'}`}>
+        <span className={`agents-status-badge ${info.getValue() === 'activo' ? 'agents-status-active' : 'agents-status-inactive'}`}>
           {info.getValue()}
         </span>
+      ),
+    },
+    { accessorKey: 'fecha_nacimiento', header: 'Nacimiento' },
+    { accessorKey: 'curp', header: 'CURP' },
+    { accessorKey: 'rfc', header: 'RFC' },
+    { accessorKey: 'direccion', header: 'Dirección' },
+    { accessorKey: 'fecha_alta', header: 'Alta' },
+    {
+      id: 'claves',
+      header: 'Claves',
+      cell: info => (
+        <div className="agents-city-text">
+          {(info.row.original.claves_aseguradora || []).map((clave) => (
+            <div key={clave.id || `${clave.aseguradora_id}-${clave.clave_agente}`}>
+              {(clave.aseguradora?.nombre || 'Aseguradora')}: {clave.clave_agente}
+            </div>
+          ))}
+        </div>
       ),
     },
     {
@@ -149,7 +343,7 @@ export default function SeccionAgentes() {
               <div className="p-1">
                 <Menu.Item>
                   {({ active }) => (
-                    <button onClick={() => setAgentToEdit(info.row.original)} className={`agents-menu-item ${active ? 'agents-menu-item-active' : ''}`}>
+                    <button onClick={() => openEditModal(info.row.original)} className={`agents-menu-item ${active ? 'agents-menu-item-active' : ''}`}>
                       <Edit2 size={16} className="mr-2" /> Editar
                     </button>
                   )}
@@ -190,7 +384,8 @@ export default function SeccionAgentes() {
         <Navbar /> 
 
         <main className="agents-main">
-          
+          {apiError && <p className="agents-empty-subtext">{apiError}</p>}
+          {loading && <p className="agents-empty-subtext">Cargando agentes...</p>}
           <div className="agents-page-header">
             <h1 className="agents-page-title">Agentes</h1>
             <p className="agents-page-subtitle">Gestiona los permisos y perfiles de tu equipo.</p>
@@ -256,8 +451,8 @@ export default function SeccionAgentes() {
                   className="agents-filter-select"
                 >
                   <option value="todos">Todos los estados</option>
-                  <option value="Activo">Activos</option>
-                  <option value="Inactivo">Inactivos</option>
+                  <option value="activo">Activos</option>
+                  <option value="inactivo">Inactivos</option>
                 </select>
                 <ChevronDown size={14} className="agents-select-chevron" />
               </div>
@@ -270,7 +465,7 @@ export default function SeccionAgentes() {
                   onChange={(e) => setFiltroEmpresa(e.target.value)}
                   className="agents-filter-select"
                 >
-                  <option value="todos">Todas las empresas</option>
+                  <option value="todos">Todas las aseguradoras</option>
                   {empresas.filter(e => e !== 'todos').map(empresa => (
                     <option key={empresa} value={empresa}>{empresa}</option>
                   ))}
@@ -278,7 +473,7 @@ export default function SeccionAgentes() {
                 <ChevronDown size={14} className="agents-select-chevron" />
               </div>
 
-              <button onClick={() => setIsAddModalOpen(true)} className="agents-add-button">
+              <button onClick={openAddModal} className="agents-add-button">
                 <UserPlus size={18} />
                 <span>Agregar</span>
               </button>
@@ -381,7 +576,7 @@ export default function SeccionAgentes() {
       {/* Modal de Agregar/Editar */}
       <AnimatePresence>
         {(agentToEdit || isAddModalOpen) && (
-          <Dialog as="div" className="agents-modal" onClose={() => {setAgentToEdit(null); setIsAddModalOpen(false);}} open={true}>
+          <Dialog as="div" className="agents-modal" onClose={() => { setAgentToEdit(null); setIsAddModalOpen(false); }} open={true}>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="agents-modal-overlay" />
             <div className="agents-modal-container">
               <Dialog.Panel className="agents-modal-panel">
@@ -391,19 +586,152 @@ export default function SeccionAgentes() {
                     <X size={20}/>
                   </button>
                 </div>
+                {apiError && <p className="agents-empty-subtext">{apiError}</p>}
                 <div className="agents-modal-form">
-                  <ModalInput label="Nombre Completo" icon={<User size={16}/>} defaultValue={agentToEdit?.nombre || ''} />
-                  <ModalInput label="Empresa" icon={<Building size={16}/>} defaultValue={agentToEdit?.empresa || ''} />
-                  <ModalInput label="Email" icon={<Mail size={16}/>} defaultValue={agentToEdit?.email || ''} />
-                  <ModalInput label="Teléfono" icon={<Phone size={16}/>} defaultValue={agentToEdit?.telefono || ''} />
-                  <ModalInput label="Ubicación" icon={<MapPin size={16}/>} defaultValue={agentToEdit?.ciudad || ''} className="agents-full-width" />
+                  <ModalInput label="Cédula" icon={<User size={16}/>} value={formData.cedula} onChange={(e) => setFormData({ ...formData, cedula: e.target.value })} />
+                  <ModalInput label="Nombre" icon={<User size={16}/>} value={formData.nombre} onChange={(e) => setFormData({ ...formData, nombre: e.target.value })} />
+                  <ModalInput label="Apellido" icon={<User size={16}/>} value={formData.apellido} onChange={(e) => setFormData({ ...formData, apellido: e.target.value })} />
+                  <ModalInput label="Email" icon={<Mail size={16}/>} value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+                  <ModalInput label="Teléfono" icon={<Phone size={16}/>} value={formData.telefono} onChange={(e) => setFormData({ ...formData, telefono: e.target.value })} />
+                  <ModalInput label="Ciudad" icon={<MapPin size={16}/>} value={formData.ciudad} onChange={(e) => setFormData({ ...formData, ciudad: e.target.value })} />
+                  <ModalInput label="Estado" icon={<MapPin size={16}/>} value={formData.estado} onChange={(e) => setFormData({ ...formData, estado: e.target.value })} />
+                  <ModalInput label="CURP" icon={<User size={16}/>} value={formData.curp} onChange={(e) => setFormData({ ...formData, curp: e.target.value })} />
+                  <ModalInput label="RFC" icon={<User size={16}/>} value={formData.rfc} onChange={(e) => setFormData({ ...formData, rfc: e.target.value })} />
+                  <div className="agents-modal-input-group agents-full-width">
+                    <label className="agents-modal-input-label">Status</label>
+                    <div className="agents-modal-input-wrapper">
+                      <span className="agents-modal-input-icon"><Filter size={16} /></span>
+                      <select className="agents-modal-input-field" value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })}>
+                        <option value="activo">activo</option>
+                        <option value="inactivo">inactivo</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="agents-full-width">
+                    <p className="agents-modal-input-label">Claves por aseguradora</p>
+                    {formData.claves.map((clave, idx) => (
+                      <div key={idx} className="agents-modal-form">
+                        <div className="agents-modal-input-group">
+                          <label className="agents-modal-input-label">Aseguradora</label>
+                          <div className="agents-modal-input-wrapper">
+                            <span className="agents-modal-input-icon"><Building size={16} /></span>
+                            <select
+                              className="agents-modal-input-field"
+                              value={clave.aseguradora_id}
+                              onChange={(e) => {
+                                const next = [...formData.claves];
+                                next[idx].aseguradora_id = e.target.value;
+                                setFormData({ ...formData, claves: next });
+                              }}
+                            >
+                              <option value="">Selecciona</option>
+                              {aseguradoras.map((a) => (
+                                <option key={a.id} value={a.id}>{a.nombre}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                        <ModalInput
+                          label="Clave agente"
+                          icon={<User size={16} />}
+                          value={clave.clave_agente}
+                          onChange={(e) => {
+                            const next = [...formData.claves];
+                            next[idx].clave_agente = e.target.value;
+                            setFormData({ ...formData, claves: next });
+                          }}
+                        />
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      className="agents-modal-cancel"
+                      onClick={() => setFormData({
+                        ...formData,
+                        claves: [...formData.claves, { aseguradora_id: '', clave_agente: '' }],
+                      })}
+                    >
+                      + Agregar clave
+                    </button>
+                  </div>
                 </div>
                 <div className="agents-modal-actions">
                   <button onClick={() => {setAgentToEdit(null); setIsAddModalOpen(false);}} className="agents-modal-cancel">
                     Cancelar
                   </button>
-                  <button className="agents-modal-confirm">
-                    Guardar Cambios
+                  <button
+                    type="button"
+                    className="agents-modal-confirm"
+                    disabled={saving}
+                    onClick={async () => {
+                      try {
+                        const { token, workspaceId } = getAuthContext();
+                        if (!token || !workspaceId) {
+                          setApiError('Falta token o workspace activo.');
+                          return;
+                        }
+                        if (!formData.cedula || !formData.nombre) {
+                          setApiError('Cédula y nombre son obligatorios.');
+                          return;
+                        }
+                        setSaving(true);
+                        setApiError('');
+                        const endpoint = agentToEdit
+                          ? `${API_URL}/agentes_workspace/${agentToEdit.id}`
+                          : `${API_URL}/agentes_workspace`;
+                        const method = agentToEdit ? 'PUT' : 'POST';
+                        const payload = {
+                          workspace_id: workspaceId,
+                          status: formData.status,
+                          agente: {
+                            cedula: formData.cedula,
+                            nombre: formData.nombre,
+                            apellido: formData.apellido || null,
+                            email: formData.email || null,
+                            telefono: formData.telefono || null,
+                            fecha_nacimiento: formData.fecha_nacimiento || null,
+                            curp: formData.curp || null,
+                            rfc: formData.rfc || null,
+                            estado: formData.estado || null,
+                            ciudad: formData.ciudad || null,
+                            direccion: formData.direccion || null,
+                            fecha_alta: formData.fecha_alta || null,
+                            activo: formData.status === 'activo',
+                            foto_url: null,
+                          },
+                          claves: formData.claves
+                            .filter((c) => c.aseguradora_id && c.clave_agente)
+                            .map((c) => ({
+                              aseguradora_id: Number(c.aseguradora_id),
+                              clave_agente: c.clave_agente,
+                            })),
+                        };
+                        const res = await fetch(endpoint, {
+                          method,
+                          headers: {
+                            Authorization: `Bearer ${token}`,
+                            Accept: 'application/json',
+                            'Content-Type': 'application/json',
+                          },
+                          body: JSON.stringify(payload),
+                        });
+                        const json = await res.json();
+                        if (!res.ok) {
+                          setApiError(json?.message || 'No se pudo guardar el agente.');
+                          return;
+                        }
+                        setAgentToEdit(null);
+                        setIsAddModalOpen(false);
+                        await fetchAgentes();
+                      } catch (error) {
+                        console.error(error);
+                        setApiError('Error de conexión con el servidor.');
+                      } finally {
+                        setSaving(false);
+                      }
+                    }}
+                  >
+                    {saving ? 'Guardando...' : 'Guardar Cambios'}
                   </button>
                 </div>
               </Dialog.Panel>
@@ -424,13 +752,31 @@ export default function SeccionAgentes() {
                 </div>
                 <h3 className="agents-delete-title">¿Eliminar Agente?</h3>
                 <p className="agents-delete-text">
-                  Vas a eliminar a {agentToDelete?.nombre || 'este agente'}. Esta acción no se puede deshacer.
+                  Vas a eliminar a {agentToDelete?.nombreCompleto || 'este agente'}. Esta acción no se puede deshacer.
                 </p>
                 <button 
-                  onClick={() => {
-                    if (agentToDelete) {
-                      setData(data.filter(a => a.id !== agentToDelete.id));
+                  onClick={async () => {
+                    if (!agentToDelete) return;
+                    try {
+                      const { token } = getAuthContext();
+                      setApiError('');
+                      const res = await fetch(`${API_URL}/agentes_workspace/${agentToDelete.id}`, {
+                        method: 'DELETE',
+                        headers: {
+                          Authorization: `Bearer ${token}`,
+                          Accept: 'application/json',
+                        },
+                      });
+                      if (!res.ok) {
+                        const json = await res.json();
+                        setApiError(json?.message || 'No se pudo eliminar el agente.');
+                        return;
+                      }
+                      setData((prev) => prev.filter((a) => a.id !== agentToDelete.id));
                       setAgentToDelete(null);
+                    } catch (error) {
+                      console.error(error);
+                      setApiError('Error de conexión con el servidor.');
                     }
                   }} 
                   className="agents-delete-confirm"
@@ -483,15 +829,3 @@ function ModalInput({ label, icon, className = '', ...props }) {
     </div>
   );
 }
-
-const initialData = [
-  { id: 1, nombre: 'Jane Cooper', empresa: 'AXA', telefono: '+1 (225) 555-0118', email: 'jane.cooper@axa.com', ciudad: 'Sonora', estado: 'Activo', avatar: 'https://randomuser.me/api/portraits/women/44.jpg' },
-  { id: 2, nombre: 'Floyd Miles', empresa: 'BBVA', telefono: '+1 (205) 555-0100', email: 'floyd.miles@bbva.com', ciudad: 'Yucatán', estado: 'Inactivo', avatar: 'https://randomuser.me/api/portraits/men/32.jpg' },
-  { id: 3, nombre: 'Ronald Richards', empresa: 'GNP', telefono: '+1 (302) 555-0107', email: 'ronald.richards@gnp.com', ciudad: 'CDMX', estado: 'Activo', avatar: 'https://randomuser.me/api/portraits/men/46.jpg' },
-  { id: 4, nombre: 'Marvin McKinney', empresa: 'BX+', telefono: '+1 (252) 555-0126', email: 'marvin.mckinney@bx.com', ciudad: 'Monterrey', estado: 'Activo', avatar: 'https://randomuser.me/api/portraits/men/22.jpg' },
-  { id: 5, nombre: 'Brooklyn Zoe', empresa: 'HSBC', telefono: '+1 (212) 555-0134', email: 'brooklyn.z@hsbc.com', ciudad: 'Nuevo León', estado: 'Inactivo', avatar: 'https://randomuser.me/api/portraits/women/68.jpg' },
-  { id: 6, nombre: 'Alice Krejčová', empresa: 'BBVA', telefono: '+1 (205) 555-0101', email: 'alice.k@bbva.com', ciudad: 'Puebla', estado: 'Activo', avatar: 'https://randomuser.me/api/portraits/women/63.jpg' },
-  { id: 7, nombre: 'Jurriaan van den Bos', empresa: 'ING', telefono: '+1 (302) 555-0108', email: 'jurriaan.v@ing.com', ciudad: 'Querétaro', estado: 'Activo', avatar: 'https://randomuser.me/api/portraits/men/51.jpg'},
-  { id: 8, nombre: 'Samantha Smith', empresa: 'Santander', telefono: '+1 (212) 555-0145', email: 'samantha.s@santander.com', ciudad: 'Tamaulipas', estado: 'Activo', avatar: 'https://randomuser.me/api/portraits/women/63.jpg'},
-  { id: 9, nombre: 'John Doe', empresa: 'BBVA', telefono: '+1 (205) 555-0101', email: 'john.d@bbva.com', ciudad: 'Tamaulipas', estado: 'Activo', avatar: 'https://randomuser.me/api/portraits/men/51.jpg'},
-];

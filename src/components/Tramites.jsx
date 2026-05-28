@@ -1,10 +1,17 @@
-import React, { useState, useMemo, Fragment } from 'react';
+/**
+ * Gestión de Trámites — integración con GET/POST/PUT/DELETE /api/tramites
+ * Tabla: tramites (+ workspace_id, folio en migración 2026_04_15_121000)
+ *
+ * Copia a tu src (ajusta imports: ./Sidebar o ../components/Sidebar).
+ */
+
+import React, { useState, useMemo, Fragment, useEffect, useCallback } from 'react';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
-import {  
-  FiTrash2, 
-  FiSearch, 
-  FiPlus, 
+import {
+  FiTrash2,
+  FiSearch,
+  FiPlus,
   FiAlertCircle,
   FiCalendar,
   FiClock,
@@ -21,11 +28,39 @@ import {
   FiEye,
   FiCopy,
   FiPrinter,
-  FiEdit2
+  FiEdit2,
 } from 'react-icons/fi';
 import { Menu, Transition } from '@headlessui/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import './css/Tramites.css';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+
+function authHeaders() {
+  const token = localStorage.getItem('token');
+  return {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+function mapTramiteFromApi(row) {
+  const sem = (row.semaforo || 'verde').toLowerCase();
+  const status = ['verde', 'amarillo', 'rojo'].includes(sem) ? sem : 'verde';
+  return {
+    id: row.id,
+    raw: row,
+    folio: row.folio || row.id,
+    etapa: row.etapa || '—',
+    agente: row.nombre_agente || '—',
+    ramo: row.ramo || '—',
+    poliza: row.poliza_referencia || '—',
+    fecha: row.fecha_alta?.slice?.(0, 10) || '',
+    ultimaModificacion: row.fecha_ultima_modificacion?.slice?.(0, 10) || row.updated_at?.slice?.(0, 10) || '',
+    status,
+  };
+}
 
 const Tramites = () => {
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
@@ -38,20 +73,31 @@ const Tramites = () => {
   const [filterStatus, setFilterStatus] = useState('todos');
   const itemsPerPage = 5;
 
-  // Estado para los datos
-  const [data, setData] = useState([
-    { id: 1, folio: '1091754', etapa: 'Cobranza', agente: 'Jorge Arollo', ramo: 'Personas', poliza: '222-0000329846-04', fecha: '2025-12-30', ultimaModificacion: '2024-03-15', status: 'rojo' },
-    { id: 2, folio: '1094825', etapa: 'Emisión', agente: 'AMRS Seguros', ramo: 'Vida Individual', poliza: '--', fecha: '2026-01-02', ultimaModificacion: '2024-03-14', status: 'amarillo' },
-    { id: 3, folio: '1102522', etapa: 'Cotización', agente: 'Martha Celia', ramo: 'Autos', poliza: '210-0000008293-14', fecha: '2026-01-22', ultimaModificacion: '2024-03-13', status: 'verde' },
-    { id: 4, folio: '1103522', etapa: 'Revisión', agente: 'Carlos Ruiz', ramo: 'Hogar', poliza: '310-0000001293-14', fecha: '2026-02-10', ultimaModificacion: '2024-03-12', status: 'verde' },
-    { id: 5, folio: '1104522', etapa: 'Aprobación', agente: 'Laura Gomez', ramo: 'Salud', poliza: '410-0000002293-14', fecha: '2026-02-15', ultimaModificacion: '2024-03-11', status: 'amarillo' },
-    { id: 6, folio: '1105522', etapa: 'Cobranza', agente: 'Pedro Martinez', ramo: 'Autos', poliza: '510-0000003293-14', fecha: '2026-02-20', ultimaModificacion: '2024-03-10', status: 'rojo' },
-    { id: 7, folio: '1106522', etapa: 'Emisión', agente: 'Ana Torres', ramo: 'Vida', poliza: '610-0000004293-14', fecha: '2026-02-25', ultimaModificacion: '2024-03-09', status: 'verde' },
-    { id: 8, folio: '1107522', etapa: 'Cotización', agente: 'Luis Fernandez', ramo: 'Empresarial', poliza: '710-0000005293-14', fecha: '2026-03-01', ultimaModificacion: '2024-03-08', status: 'amarillo' },
-    { id: 9, folio: '1108522', etapa: 'Revisión', agente: 'Sofia Lopez', ramo: 'Gastos Médicos', poliza: '810-0000006293-14', fecha: '2026-03-05', ultimaModificacion: '2024-03-07', status: 'rojo' },
-  ]);
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [listError, setListError] = useState('');
 
-  // Estado para el formulario de nuevo trámite
+  const loadTramites = useCallback(async () => {
+    setLoading(true);
+    setListError('');
+    try {
+      const res = await fetch(`${API_URL}/tramites?per_page=200`, { headers: authHeaders() });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al cargar trámites');
+      const rows = json.data || [];
+      setData(rows.map(mapTramiteFromApi));
+    } catch (e) {
+      setListError(e.message || 'Error de red');
+      setData([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadTramites();
+  }, [loadTramites]);
+
   const [newTramite, setNewTramite] = useState({
     folio: '',
     etapa: 'Cotización',
@@ -59,10 +105,9 @@ const Tramites = () => {
     ramo: '',
     poliza: '',
     fecha: '',
-    status: 'verde'
+    status: 'verde',
   });
 
-  // Estado para el formulario de edición
   const [editTramite, setEditTramite] = useState({
     id: null,
     folio: '',
@@ -71,146 +116,185 @@ const Tramites = () => {
     ramo: '',
     poliza: '',
     fecha: '',
-    status: ''
+    status: '',
   });
 
   const getStatusConfig = (status) => {
     switch (status) {
-      case 'verde': return { 
-        color: 'tramites-bg-green-500', 
-        text: '¡Excelente! Estás a tiempo con este trámite.',
-        bg: 'tramites-bg-green-50',
-        border: 'tramites-border-green-200',
-        icon: <FiCheckCircle className="tramites-text-green-500" />
-      };
-      case 'amarillo': return { 
-        color: 'tramites-bg-yellow-400', 
-        text: 'Atención: El trámite está por vencer, revisa los detalles.',
-        bg: 'tramites-bg-yellow-50',
-        border: 'tramites-border-yellow-200',
-        icon: <FiClock className="tramites-text-yellow-500" />
-      };
-      case 'rojo': return { 
-        color: 'tramites-bg-red-500', 
-        text: 'Urgente: El trámite ya pasó su tiempo de atención, requiere prioridad inmediata.',
-        bg: 'tramites-bg-red-50',
-        border: 'tramites-border-red-200',
-        icon: <FiXCircle className="tramites-text-red-500" />
-      };
-      default: return { color: 'tramites-bg-gray-300', text: '', bg: 'tramites-bg-gray-50', border: 'tramites-border-gray-200', icon: null };
+      case 'verde':
+        return {
+          color: 'tramites-bg-green-500',
+          text: '¡Excelente! Estás a tiempo con este trámite.',
+          bg: 'tramites-bg-green-50',
+          border: 'tramites-border-green-200',
+          icon: <FiCheckCircle className="tramites-text-green-500" />,
+        };
+      case 'amarillo':
+        return {
+          color: 'tramites-bg-yellow-400',
+          text: 'Atención: El trámite está por vencer, revisa los detalles.',
+          bg: 'tramites-bg-yellow-50',
+          border: 'tramites-border-yellow-200',
+          icon: <FiClock className="tramites-text-yellow-500" />,
+        };
+      case 'rojo':
+        return {
+          color: 'tramites-bg-red-500',
+          text: 'Urgente: El trámite ya pasó su tiempo de atención, requiere prioridad inmediata.',
+          bg: 'tramites-bg-red-50',
+          border: 'tramites-border-red-200',
+          icon: <FiXCircle className="tramites-text-red-500" />,
+        };
+      default:
+        return {
+          color: 'tramites-bg-gray-300',
+          text: '',
+          bg: 'tramites-bg-gray-50',
+          border: 'tramites-border-gray-200',
+          icon: null,
+        };
     }
   };
 
-  // Función para agregar nuevo trámite
-  const handleAddTramite = (e) => {
+  const handleAddTramite = async (e) => {
     e.preventDefault();
-    const today = new Date().toISOString().split('T')[0];
-    const newId = Math.max(...data.map(item => item.id)) + 1;
-    
-    const tramiteToAdd = {
-      ...newTramite,
-      id: newId,
-      ultimaModificacion: today
-    };
-
-    setData([...data, tramiteToAdd]);
-    setIsAddModalOpen(false);
-    
-    // Resetear formulario
-    setNewTramite({
-      folio: '',
-      etapa: 'Cotización',
-      agente: '',
-      ramo: '',
-      poliza: '',
-      fecha: '',
-      status: 'verde'
-    });
+    try {
+      const res = await fetch(`${API_URL}/tramites`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          folio: newTramite.folio || null,
+          etapa: newTramite.etapa,
+          nombre_agente: newTramite.agente,
+          ramo: newTramite.ramo,
+          poliza_referencia: newTramite.poliza || null,
+          fecha_alta: newTramite.fecha || null,
+          semaforo: newTramite.status,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || JSON.stringify(json.errors || {}));
+      setIsAddModalOpen(false);
+      setNewTramite({
+        folio: '',
+        etapa: 'Cotización',
+        agente: '',
+        ramo: '',
+        poliza: '',
+        fecha: '',
+        status: 'verde',
+      });
+      loadTramites();
+    } catch (err) {
+      alert(err.message || 'No se pudo guardar');
+    }
   };
 
-  // Función para abrir modal de edición
   const handleEditClick = (item) => {
     setSelectedItem(item);
     setEditTramite({
       id: item.id,
-      folio: item.folio,
+      folio: String(item.folio ?? ''),
       etapa: item.etapa,
       agente: item.agente,
       ramo: item.ramo,
-      poliza: item.poliza,
+      poliza: item.poliza === '—' ? '' : item.poliza,
       fecha: item.fecha,
-      status: item.status
+      status: item.status,
     });
     setIsEditModalOpen(true);
   };
 
-  // Función para guardar edición
-  const handleSaveEdit = (e) => {
+  const handleSaveEdit = async (e) => {
     e.preventDefault();
-    const today = new Date().toISOString().split('T')[0];
-    
-    const updatedData = data.map(item => 
-      item.id === editTramite.id 
-        ? { ...editTramite, ultimaModificacion: today }
-        : item
-    );
-    
-    setData(updatedData);
-    setIsEditModalOpen(false);
-    setSelectedItem(null);
-  };
-
-  // Función para eliminar trámite
-  const handleDeleteConfirm = () => {
-    if (selectedItem) {
-      setData(data.filter(item => item.id !== selectedItem.id));
-      setIsDeleteModalOpen(false);
+    try {
+      const res = await fetch(`${API_URL}/tramites/${editTramite.id}`, {
+        method: 'PUT',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          folio: editTramite.folio || null,
+          etapa: editTramite.etapa,
+          nombre_agente: editTramite.agente,
+          ramo: editTramite.ramo,
+          poliza_referencia: editTramite.poliza || null,
+          fecha_alta: editTramite.fecha || null,
+          semaforo: editTramite.status,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Error al actualizar');
+      setIsEditModalOpen(false);
       setSelectedItem(null);
+      loadTramites();
+    } catch (err) {
+      alert(err.message || 'No se pudo actualizar');
     }
   };
 
-  // Filtrado y paginación
+  const handleDeleteConfirm = async () => {
+    if (!selectedItem?.id) return;
+    try {
+      const res = await fetch(`${API_URL}/tramites/${selectedItem.id}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.message || `Error ${res.status}`);
+      }
+      setIsDeleteModalOpen(false);
+      setSelectedItem(null);
+      loadTramites();
+    } catch (err) {
+      alert(err.message || 'No se pudo eliminar');
+    }
+  };
+
   const filteredData = useMemo(() => {
     let filtered = data.filter((item) => {
-      const matchesSearch = searchTerm === '' || 
-        item.folio.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      const matchesSearch =
+        searchTerm === '' ||
+        String(item.folio).toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.agente.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.ramo.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.etapa.toLowerCase().includes(searchTerm.toLowerCase());
-      
       const matchesStatus = filterStatus === 'todos' || item.status === filterStatus;
-      
       return matchesSearch && matchesStatus;
     });
-    
-    return filtered.sort((a, b) => new Date(b.ultimaModificacion) - new Date(a.ultimaModificacion));
+    return filtered.sort((a, b) => new Date(b.ultimaModificacion || 0) - new Date(a.ultimaModificacion || 0));
   }, [searchTerm, data, filterStatus]);
 
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / itemsPerPage));
   const paginatedData = filteredData.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
 
+  useEffect(() => {
+    setCurrentPage((p) => Math.min(p, totalPages));
+  }, [totalPages]);
+
   return (
     <div className="tramites-container">
       <Sidebar onExpand={setIsSidebarExpanded} />
-      
-      <div className={`tramites-main-content ${isSidebarExpanded ? 'tramites-sidebar-expanded' : 'tramites-sidebar-collapsed'}`}>
+
+      <div
+        className={`tramites-main-content ${
+          isSidebarExpanded ? 'tramites-sidebar-expanded' : 'tramites-sidebar-collapsed'
+        }`}
+      >
         <Navbar />
 
         <main className="tramites-main">
-          {/* Header con título y estadísticas */}
           <div className="tramites-page-header">
             <div>
               <h1 className="tramites-page-title">Gestión de Trámites</h1>
-              <p className="tramites-page-subtitle">Control y seguimiento de procesos administrativos</p>
+
             </div>
-            
-            {/* Indicadores de estado */}
+
             <div className="tramites-status-indicators">
               {['verde', 'amarillo', 'rojo'].map((status) => {
-                const count = data.filter(item => item.status === status).length;
+                const count = data.filter((item) => item.status === status).length;
                 const config = getStatusConfig(status);
                 return (
                   <div key={status} className="tramites-status-indicator-container">
@@ -219,8 +303,6 @@ const Tramites = () => {
                       <span className="tramites-indicator-label">{status}</span>
                       <span className="tramites-indicator-count">{count}</span>
                     </div>
-                    
-                    {/* Tooltip */}
                     <div className="tramites-status-tooltip">
                       <div className={`tramites-tooltip-content ${status}`}>
                         <div className="tramites-tooltip-header">
@@ -235,7 +317,7 @@ const Tramites = () => {
                         <div className="tramites-tooltip-stats">
                           <span className="tramites-tooltip-count">{count} trámites</span>
                           <span className="tramites-tooltip-percentage">
-                            {Math.round((count / data.length) * 100)}%
+                            {data.length ? Math.round((count / data.length) * 100) : 0}%
                           </span>
                         </div>
                       </div>
@@ -246,11 +328,13 @@ const Tramites = () => {
             </div>
           </div>
 
-          {/* Barra de herramientas */}
+          {listError && <p className="gsea-auth-error" style={{ margin: '0 1rem 1rem' }}>{listError}</p>}
+          {loading && <p style={{ margin: '0 1rem 1rem' }}>Cargando…</p>}
+
           <div className="tramites-tools-bar">
             <div className="tramites-search-wrapper">
               <FiSearch className="tramites-search-icon" />
-              <input 
+              <input
                 type="text"
                 placeholder="Buscar por folio, agente o ramo..."
                 className="tramites-search-input"
@@ -262,7 +346,7 @@ const Tramites = () => {
             <div className="tramites-tools-wrapper">
               <div className="tramites-filter-group">
                 <FiFilter className="tramites-filter-icon" />
-                <select 
+                <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
                   className="tramites-filter-select"
@@ -274,22 +358,18 @@ const Tramites = () => {
                 </select>
               </div>
 
-              <button className="tramites-btn-export">
+              <button type="button" className="tramites-btn-export" disabled title="Pendiente exportar">
                 <FiDownload />
                 <span>Exportar</span>
               </button>
 
-              <button 
-                className="tramites-btn-add"
-                onClick={() => setIsAddModalOpen(true)}
-              >
+              <button type="button" className="tramites-btn-add" onClick={() => setIsAddModalOpen(true)}>
                 <FiPlus />
                 <span>Nuevo Trámite</span>
               </button>
             </div>
           </div>
 
-          {/* Tabla de Trámites */}
           <div className="tramites-table-container">
             <div className="tramites-table-responsive">
               <table className="tramites-table">
@@ -309,7 +389,7 @@ const Tramites = () => {
                   {paginatedData.map((item) => {
                     const statusConfig = getStatusConfig(item.status);
                     return (
-                      <motion.tr 
+                      <motion.tr
                         key={item.id}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -335,95 +415,95 @@ const Tramites = () => {
                         <td>
                           <div className="tramites-status-container">
                             <div className={`tramites-status-dot ${statusConfig.color}`} />
-                            <span className={`tramites-status-text tramites-${item.status}`}>
-                              {item.status}
-                            </span>
+                            <span className={`tramites-status-text tramites-${item.status}`}>{item.status}</span>
                           </div>
                         </td>
                         <td>
                           <div className="tramites-date-cell">
                             <FiCalendar className="tramites-date-icon" />
-                            <span>{new Date(item.ultimaModificacion).toLocaleDateString('es-MX')}</span>
+                            <span>
+                              {item.ultimaModificacion
+                                ? new Date(item.ultimaModificacion).toLocaleDateString('es-MX')
+                                : '—'}
+                            </span>
                           </div>
                         </td>
                         <td>
-                       <div className="tramites-actions-cell">
-                         {/* Botones de acción principales con colores fijos */}
-                         <motion.button 
-                           whileHover={{ scale: 1.1 }}
-                           whileTap={{ scale: 0.95 }}
-                           className="tramites-action-btn tramites-edit-btn"
-                           onClick={() => handleEditClick(item)}
-                           title="Editar"
-                         >
-                           <FiEdit2 />
-                         </motion.button>
-                         
-                         <motion.button 
-                           whileHover={{ scale: 1.1 }}
-                           whileTap={{ scale: 0.95 }}
-                           className="tramites-action-btn tramites-delete-btn"
-                           onClick={() => {
-                             setSelectedItem(item);
-                             setIsDeleteModalOpen(true);
-                           }}
-                           title="Eliminar"
-                         >
-                           <FiTrash2 />
-                         </motion.button>
-                     
-                         {/* Menú de tres puntitos con más acciones */}
-                         <Menu as="div" className="tramites-actions-menu">
-                           <Menu.Button as="div" className="tramites-actions-button" title="Más opciones">
-                             <FiMoreVertical size={18} />
-                           </Menu.Button>
-                           
-                           <Transition
-                             as={Fragment}
-                             enter="tramites-transition-enter"
-                             enterFrom="tramites-transition-enter-from"
-                             enterTo="tramites-transition-enter-to"
-                             leave="tramites-transition-leave"
-                             leaveFrom="tramites-transition-leave-from"
-                             leaveTo="tramites-transition-leave-to"
-                           >
-                             <Menu.Items className="tramites-menu-items">
-                               <Menu.Item>
-                                 {({ active }) => (
-                                   <button
-                                     className={`tramites-menu-item ${active ? 'tramites-menu-item-active' : ''}`}
-                                   >
-                                     <FiEye size={14} />
-                                     <span>Ver detalles</span>
-                                   </button>
-                                 )}
-                               </Menu.Item>
-                               
-                               <Menu.Item>
-                                 {({ active }) => (
-                                   <button
-                                     className={`tramites-menu-item ${active ? 'tramites-menu-item-active' : ''}`}
-                                   >
-                                     <FiCopy size={14} />
-                                     <span>Duplicar</span>
-                                   </button>
-                                 )}
-                               </Menu.Item>
-                               
-                               <Menu.Item>
-                                 {({ active }) => (
-                                   <button
-                                     className={`tramites-menu-item ${active ? 'tramites-menu-item-active' : ''}`}
-                                   >
-                                     <FiPrinter size={14} />
-                                     <span>Imprimir</span>
-                                   </button>
-                                 )}
-                               </Menu.Item>
-                             </Menu.Items>
-                           </Transition>
-                         </Menu>
-                         </div>
+                          <div className="tramites-actions-cell">
+                            <motion.button
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.95 }}
+                              type="button"
+                              className="tramites-action-btn tramites-edit-btn"
+                              onClick={() => handleEditClick(item)}
+                              title="Editar"
+                            >
+                              <FiEdit2 />
+                            </motion.button>
+                            <motion.button
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.95 }}
+                              type="button"
+                              className="tramites-action-btn tramites-delete-btn"
+                              onClick={() => {
+                                setSelectedItem(item);
+                                setIsDeleteModalOpen(true);
+                              }}
+                              title="Eliminar"
+                            >
+                              <FiTrash2 />
+                            </motion.button>
+                            <Menu as="div" className="tramites-actions-menu">
+                              <Menu.Button as="div" className="tramites-actions-button" title="Más opciones">
+                                <FiMoreVertical size={18} />
+                              </Menu.Button>
+                              <Transition
+                                as={Fragment}
+                                enter="tramites-transition-enter"
+                                enterFrom="tramites-transition-enter-from"
+                                enterTo="tramites-transition-enter-to"
+                                leave="tramites-transition-leave"
+                                leaveFrom="tramites-transition-leave-from"
+                                leaveTo="tramites-transition-leave-to"
+                              >
+                                <Menu.Items className="tramites-menu-items">
+                                  <Menu.Item>
+                                    {({ active }) => (
+                                      <button
+                                        type="button"
+                                        className={`tramites-menu-item ${active ? 'tramites-menu-item-active' : ''}`}
+                                      >
+                                        <FiEye size={14} />
+                                        <span>Ver detalles</span>
+                                      </button>
+                                    )}
+                                  </Menu.Item>
+                                  <Menu.Item>
+                                    {({ active }) => (
+                                      <button
+                                        type="button"
+                                        className={`tramites-menu-item ${active ? 'tramites-menu-item-active' : ''}`}
+                                      >
+                                        <FiCopy size={14} />
+                                        <span>Duplicar</span>
+                                      </button>
+                                    )}
+                                  </Menu.Item>
+                                  <Menu.Item>
+                                    {({ active }) => (
+                                      <button
+                                        type="button"
+                                        className={`tramites-menu-item ${active ? 'tramites-menu-item-active' : ''}`}
+                                      >
+                                        <FiPrinter size={14} />
+                                        <span>Imprimir</span>
+                                      </button>
+                                    )}
+                                  </Menu.Item>
+                                </Menu.Items>
+                              </Transition>
+                            </Menu>
+                          </div>
                         </td>
                       </motion.tr>
                     );
@@ -432,7 +512,6 @@ const Tramites = () => {
               </table>
             </div>
 
-            {/* Paginación */}
             <div className="tramites-pagination">
               <div className="tramites-pagination-info">
                 Mostrando {paginatedData.length} de {filteredData.length} registros
@@ -441,8 +520,9 @@ const Tramites = () => {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
+                  type="button"
                   className="tramites-pagination-btn"
-                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                   disabled={currentPage === 1}
                 >
                   <FiChevronLeft />
@@ -453,8 +533,9 @@ const Tramites = () => {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
+                  type="button"
                   className="tramites-pagination-btn"
-                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
                   disabled={currentPage === totalPages}
                 >
                   <FiChevronRight />
@@ -465,11 +546,10 @@ const Tramites = () => {
         </main>
       </div>
 
-      {/* Modales (sin cambios) */}
       <AnimatePresence>
         {isAddModalOpen && (
           <div className="tramites-modal-overlay">
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -480,32 +560,27 @@ const Tramites = () => {
                   <FiFileText />
                 </div>
                 <h2 className="tramites-modal-title">Nuevo Trámite</h2>
-                <button 
-                  className="tramites-modal-close"
-                  onClick={() => setIsAddModalOpen(false)}
-                >
+                <button type="button" className="tramites-modal-close" onClick={() => setIsAddModalOpen(false)}>
                   <FiX size={20} />
                 </button>
               </div>
-
               <form onSubmit={handleAddTramite}>
                 <div className="tramites-modal-form">
                   <div className="tramites-form-grid">
                     <div className="tramites-form-group">
-                      <label>Folio *</label>
-                      <input 
-                        type="text" 
+                      <label>Folio</label>
+                      <input
+                        type="text"
                         placeholder="Ej: 1091754"
                         value={newTramite.folio}
-                        onChange={(e) => setNewTramite({...newTramite, folio: e.target.value})}
-                        required
+                        onChange={(e) => setNewTramite({ ...newTramite, folio: e.target.value })}
                       />
                     </div>
                     <div className="tramites-form-group">
                       <label>Etapa *</label>
-                      <select 
+                      <select
                         value={newTramite.etapa}
-                        onChange={(e) => setNewTramite({...newTramite, etapa: e.target.value})}
+                        onChange={(e) => setNewTramite({ ...newTramite, etapa: e.target.value })}
                         required
                       >
                         <option>Cotización</option>
@@ -517,47 +592,47 @@ const Tramites = () => {
                     </div>
                     <div className="tramites-form-group">
                       <label>Agente *</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         placeholder="Nombre del agente"
                         value={newTramite.agente}
-                        onChange={(e) => setNewTramite({...newTramite, agente: e.target.value})}
+                        onChange={(e) => setNewTramite({ ...newTramite, agente: e.target.value })}
                         required
                       />
                     </div>
                     <div className="tramites-form-group">
                       <label>Ramo *</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         placeholder="Ej: Autos, Vida, Salud"
                         value={newTramite.ramo}
-                        onChange={(e) => setNewTramite({...newTramite, ramo: e.target.value})}
+                        onChange={(e) => setNewTramite({ ...newTramite, ramo: e.target.value })}
                         required
                       />
                     </div>
                     <div className="tramites-form-group">
-                      <label>Póliza</label>
-                      <input 
-                        type="text" 
+                      <label>Póliza (ref.)</label>
+                      <input
+                        type="text"
                         placeholder="Número de póliza"
                         value={newTramite.poliza}
-                        onChange={(e) => setNewTramite({...newTramite, poliza: e.target.value})}
+                        onChange={(e) => setNewTramite({ ...newTramite, poliza: e.target.value })}
                       />
                     </div>
                     <div className="tramites-form-group">
-                      <label>Fecha *</label>
-                      <input 
-                        type="date" 
+                      <label>Fecha alta *</label>
+                      <input
+                        type="date"
                         value={newTramite.fecha}
-                        onChange={(e) => setNewTramite({...newTramite, fecha: e.target.value})}
+                        onChange={(e) => setNewTramite({ ...newTramite, fecha: e.target.value })}
                         required
                       />
                     </div>
                     <div className="tramites-form-group tramites-full-width">
-                      <label>Estado *</label>
-                      <select 
+                      <label>Semáforo *</label>
+                      <select
                         value={newTramite.status}
-                        onChange={(e) => setNewTramite({...newTramite, status: e.target.value})}
+                        onChange={(e) => setNewTramite({ ...newTramite, status: e.target.value })}
                         required
                       >
                         <option value="verde">Verde - Normal</option>
@@ -567,7 +642,6 @@ const Tramites = () => {
                     </div>
                   </div>
                 </div>
-
                 <div className="tramites-modal-footer">
                   <motion.button
                     whileHover={{ scale: 1.02 }}
@@ -578,12 +652,7 @@ const Tramites = () => {
                   >
                     Cancelar
                   </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    type="submit"
-                    className="tramites-btn-save"
-                  >
+                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" className="tramites-btn-save">
                     Guardar Trámite
                   </motion.button>
                 </div>
@@ -596,7 +665,7 @@ const Tramites = () => {
       <AnimatePresence>
         {isEditModalOpen && (
           <div className="tramites-modal-overlay">
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -604,7 +673,8 @@ const Tramites = () => {
             >
               <div className="tramites-modal-header">
                 <h2 className="tramites-modal-title">Editar Trámite</h2>
-                <button 
+                <button
+                  type="button"
                   className="tramites-modal-close"
                   onClick={() => {
                     setIsEditModalOpen(false);
@@ -614,25 +684,22 @@ const Tramites = () => {
                   <FiX size={20} />
                 </button>
               </div>
-
               <form onSubmit={handleSaveEdit}>
                 <div className="tramites-modal-form">
                   <div className="tramites-form-grid">
                     <div className="tramites-form-group">
-                      <label>Folio *</label>
-                      <input 
-                        type="text" 
-                        placeholder="Ej: 1091754"
+                      <label>Folio</label>
+                      <input
+                        type="text"
                         value={editTramite.folio}
-                        onChange={(e) => setEditTramite({...editTramite, folio: e.target.value})}
-                        required
+                        onChange={(e) => setEditTramite({ ...editTramite, folio: e.target.value })}
                       />
                     </div>
                     <div className="tramites-form-group">
                       <label>Etapa *</label>
-                      <select 
+                      <select
                         value={editTramite.etapa}
-                        onChange={(e) => setEditTramite({...editTramite, etapa: e.target.value})}
+                        onChange={(e) => setEditTramite({ ...editTramite, etapa: e.target.value })}
                         required
                       >
                         <option>Cotización</option>
@@ -644,47 +711,44 @@ const Tramites = () => {
                     </div>
                     <div className="tramites-form-group">
                       <label>Agente *</label>
-                      <input 
-                        type="text" 
-                        placeholder="Nombre del agente"
+                      <input
+                        type="text"
                         value={editTramite.agente}
-                        onChange={(e) => setEditTramite({...editTramite, agente: e.target.value})}
+                        onChange={(e) => setEditTramite({ ...editTramite, agente: e.target.value })}
                         required
                       />
                     </div>
                     <div className="tramites-form-group">
                       <label>Ramo *</label>
-                      <input 
-                        type="text" 
-                        placeholder="Ej: Autos, Vida, Salud"
+                      <input
+                        type="text"
                         value={editTramite.ramo}
-                        onChange={(e) => setEditTramite({...editTramite, ramo: e.target.value})}
+                        onChange={(e) => setEditTramite({ ...editTramite, ramo: e.target.value })}
                         required
                       />
                     </div>
                     <div className="tramites-form-group">
-                      <label>Póliza</label>
-                      <input 
-                        type="text" 
-                        placeholder="Número de póliza"
+                      <label>Póliza (ref.)</label>
+                      <input
+                        type="text"
                         value={editTramite.poliza}
-                        onChange={(e) => setEditTramite({...editTramite, poliza: e.target.value})}
+                        onChange={(e) => setEditTramite({ ...editTramite, poliza: e.target.value })}
                       />
                     </div>
                     <div className="tramites-form-group">
-                      <label>Fecha *</label>
-                      <input 
-                        type="date" 
+                      <label>Fecha alta *</label>
+                      <input
+                        type="date"
                         value={editTramite.fecha}
-                        onChange={(e) => setEditTramite({...editTramite, fecha: e.target.value})}
+                        onChange={(e) => setEditTramite({ ...editTramite, fecha: e.target.value })}
                         required
                       />
                     </div>
                     <div className="tramites-form-group tramites-full-width">
-                      <label>Estado *</label>
-                      <select 
+                      <label>Semáforo *</label>
+                      <select
                         value={editTramite.status}
-                        onChange={(e) => setEditTramite({...editTramite, status: e.target.value})}
+                        onChange={(e) => setEditTramite({ ...editTramite, status: e.target.value })}
                         required
                       >
                         <option value="verde">Verde - Normal</option>
@@ -694,7 +758,6 @@ const Tramites = () => {
                     </div>
                   </div>
                 </div>
-
                 <div className="tramites-modal-footer">
                   <motion.button
                     whileHover={{ scale: 1.02 }}
@@ -708,12 +771,7 @@ const Tramites = () => {
                   >
                     Cancelar
                   </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    type="submit"
-                    className="tramites-btn-save"
-                  >
+                  <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" className="tramites-btn-save">
                     Guardar Cambios
                   </motion.button>
                 </div>
@@ -726,7 +784,7 @@ const Tramites = () => {
       <AnimatePresence>
         {isDeleteModalOpen && (
           <div className="tramites-modal-overlay tramites-modal-overlay-delete">
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
@@ -740,17 +798,13 @@ const Tramites = () => {
                 Vas a eliminar el folio <strong>#{selectedItem?.folio}</strong> de <strong>{selectedItem?.agente}</strong>. Esta acción no se puede deshacer.
               </p>
               <div className="tramites-delete-actions">
-                <motion.button 
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleDeleteConfirm}
-                  className="tramites-delete-confirm"
-                >
+                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="button" onClick={handleDeleteConfirm} className="tramites-delete-confirm">
                   Eliminar Ahora
                 </motion.button>
-                <motion.button 
+                <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
+                  type="button"
                   onClick={() => {
                     setIsDeleteModalOpen(false);
                     setSelectedItem(null);

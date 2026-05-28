@@ -1,6 +1,6 @@
-import React, { useState, useMemo, Fragment } from 'react';
-import Sidebar from './Sidebar'; 
-import Navbar from './Navbar'; 
+import React, { useState, useMemo, Fragment, useEffect, useCallback } from 'react';
+import Sidebar from './Sidebar';
+import Navbar from './Navbar';
 import { 
   FiSearch, FiPlus, FiEdit2, FiTrash2, FiMoreVertical, 
   FiDownload, FiFilter, FiChevronLeft, FiChevronRight, FiX, 
@@ -11,54 +11,109 @@ import { Menu, Transition } from '@headlessui/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import './css/SeguimientoCobranza.css';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+
+function authHeaders() {
+  const token = localStorage.getItem('token');
+  return {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+async function fetchJson(url, options = {}) {
+  const res = await fetch(url, { ...options, headers: { ...authHeaders(), ...options.headers } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg =
+      data.message ||
+      (data.errors && Object.values(data.errors).flat().join(' ')) ||
+      `Error HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  return data;
+}
+
+function nombreAgenteDesdePoliza(poliza) {
+  const ag = poliza?.agente_workspace?.agente || poliza?.agenteWorkspace?.agente;
+  if (!ag) return '—';
+  return [ag.nombre, ag.apellido].filter(Boolean).join(' ').trim() || '—';
+}
+
+function mapCuotaToRegistro(c) {
+  return {
+    id: c.id,
+    poliza: c.poliza?.numero_poliza || '—',
+    cliente: c.poliza?.contratante?.nombre || '—',
+    agente: nombreAgenteDesdePoliza(c.poliza),
+    monto: Number(c.monto),
+    fecha_prog: (c.fecha_programada || '').toString().slice(0, 10),
+    estatus: c.estatus || 'pendiente',
+    _fromApi: true,
+  };
+}
+
 const SeguimientoCobranza = () => {
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
   const [hoverStatus, setHoverStatus] = useState(null);
   const [menuOpen, setMenuOpen] = useState(null);
-  
-  const [registros, setRegistros] = useState([
-    { id: 1, poliza: '222-0000329846-04', cliente: 'Jorge Arollo', agente: 'Admin Principal', monto: 850.20, fecha_prog: '2024-03-20', estatus: 'Rojo' },
-    { id: 2, poliza: '210-0000008293-14', cliente: 'Martha Celia', agente: 'Laura Méndez', monto: 150.35, fecha_prog: '2024-03-25', estatus: 'Verde' },
-    { id: 3, poliza: '310-0000001293-14', cliente: 'Carlos Ruiz', agente: 'Roberto Solís', monto: 999.00, fecha_prog: '2024-03-22', estatus: 'Amarillo' },
-    { id: 4, poliza: '410-0000002293-14', cliente: 'Laura Gomez', agente: 'María Fernández', monto: 450.50, fecha_prog: '2024-03-28', estatus: 'Verde' },
-    { id: 5, poliza: '510-0000003293-14', cliente: 'Pedro Martinez', agente: 'Juan Pérez', monto: 1200.00, fecha_prog: '2024-03-30', estatus: 'Amarillo' },
-    { id: 6, poliza: '610-0000004293-14', cliente: 'Ana Torres', agente: 'Juan Pérez', monto: 1200.00, fecha_prog: '2024-03-30', estatus: 'Amarillo' },
-    { id: 7, poliza: '710-0000005293-14', cliente: 'Luis Fernandez', agente: 'Juan Pérez', monto: 1200.00, fecha_prog: '2024-03-30', estatus: 'Amarillo' },
-    { id: 8, poliza: '810-0000006293-14', cliente: 'Sofia Lopez', agente: 'Juan Pérez', monto: 1200.00, fecha_prog: '2024-03-30', estatus: 'Amarillo' },
-  ]);
+  const [registros, setRegistros] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   const [searchTerm, setSearchTerm] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [modalDeleteOpen, setModalDeleteOpen] = useState(false);
   const [currentRegistro, setCurrentRegistro] = useState(null);
-  const [isEditing, setIsEditing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
+  const loadRegistros = useCallback(async () => {
+    setLoadError('');
+    setLoading(true);
+    try {
+      const json = await fetchJson(`${API_URL}/cobranza_cuotas?per_page=500`);
+      const rows = (json.data || []).map(mapCuotaToRegistro);
+      setRegistros(rows);
+      setCurrentPage(1);
+    } catch (e) {
+      setLoadError(e.message || 'No se pudieron cargar las cuotas');
+      setRegistros([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadRegistros();
+  }, [loadRegistros]);
+
   const filteredRegistros = useMemo(() => {
-    return registros.filter(reg => 
-      reg.cliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      reg.poliza.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      reg.agente.toLowerCase().includes(searchTerm.toLowerCase())
+    const q = searchTerm.toLowerCase();
+    return registros.filter(
+      (reg) =>
+        (reg.cliente || '').toLowerCase().includes(q) ||
+        (reg.poliza || '').toLowerCase().includes(q) ||
+        (reg.agente || '').toLowerCase().includes(q)
     );
   }, [registros, searchTerm]);
 
-  const totalPages = Math.ceil(filteredRegistros.length / itemsPerPage);
+  const totalPages = Math.max(1, Math.ceil(filteredRegistros.length / itemsPerPage));
   const paginatedRegistros = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return filteredRegistros.slice(start, start + itemsPerPage);
   }, [filteredRegistros, currentPage]);
 
   const handleOpenAdd = () => {
-    setCurrentRegistro({ poliza: '', cliente: '', agente: '', monto: '', fecha_prog: '', estatus: 'Verde' });
-    setIsEditing(false);
-    setModalOpen(true);
+    window.alert(
+      'Las cuotas se generan al crear o editar una póliza en Seguimiento de Pólizas, con prima total o monto por cuota y frecuencia de cobro.'
+    );
   };
 
   const handleOpenEdit = (e, registro) => {
     e.stopPropagation();
-    setCurrentRegistro({...registro});
-    setIsEditing(true);
+    setCurrentRegistro({ ...registro });
     setModalOpen(true);
   };
 
@@ -68,30 +123,63 @@ const SeguimientoCobranza = () => {
     setModalDeleteOpen(true);
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    if (isEditing) {
-      setRegistros(registros.map(r => r.id === currentRegistro.id ? currentRegistro : r));
-    } else {
-      setRegistros([...registros, { ...currentRegistro, id: Date.now() }]);
+    if (!currentRegistro?._fromApi) return;
+    try {
+      await fetchJson(`${API_URL}/cobranza_cuotas/${currentRegistro.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          fecha_programada: currentRegistro.fecha_prog,
+          monto: Number(currentRegistro.monto),
+          estatus: currentRegistro.estatus,
+        }),
+      });
+      await loadRegistros();
+      setModalOpen(false);
+      setCurrentRegistro(null);
+    } catch (err) {
+      window.alert(err.message || 'Error al guardar');
     }
-    setModalOpen(false);
-    setCurrentRegistro(null);
   };
 
-  const handleDelete = () => {
-    setRegistros(registros.filter(r => r.id !== currentRegistro.id));
-    setModalDeleteOpen(false);
-    setCurrentRegistro(null);
+  const handleDelete = async () => {
+    if (!currentRegistro?._fromApi) return;
+    try {
+      await fetchJson(`${API_URL}/cobranza_cuotas/${currentRegistro.id}`, { method: 'DELETE' });
+      await loadRegistros();
+      setModalDeleteOpen(false);
+      setCurrentRegistro(null);
+    } catch (err) {
+      window.alert(err.message || 'Error al eliminar');
+    }
   };
 
   const getStatusColor = (estatus) => {
-    switch(estatus) {
-      case 'Verde': return 'cobranza-status-verde';
-      case 'Amarillo': return 'cobranza-status-amarillo';
-      case 'Rojo': return 'cobranza-status-rojo';
-      default: return '';
+    switch (estatus) {
+      case 'pagado':
+      case 'Verde':
+        return 'cobranza-status-verde';
+      case 'pendiente':
+      case 'Amarillo':
+        return 'cobranza-status-amarillo';
+      case 'vencido':
+      case 'cancelado':
+      case 'Rojo':
+        return 'cobranza-status-rojo';
+      default:
+        return 'cobranza-status-amarillo';
     }
+  };
+
+  const estatusLabel = (estatus) => {
+    const map = {
+      pagado: 'Pagado',
+      pendiente: 'Pendiente',
+      vencido: 'Vencido',
+      cancelado: 'Cancelado',
+    };
+    return map[estatus] || estatus || '—';
   };
 
   return (
@@ -105,7 +193,11 @@ const SeguimientoCobranza = () => {
           <div className="cobranza-header">
             <div>
               <h1 className="cobranza-title">Seguimiento de Cobranza</h1>
-              <p className="cobranza-subtitle">Gestión de agentes y fechas programadas</p>
+              <p className="cobranza-subtitle">
+              </p>
+              {loadError && (
+                <p style={{ color: '#b91c1c', marginTop: 8 }}>{loadError}</p>
+              )}
             </div>
             <div className="cobranza-header-actions">
               <motion.button 
@@ -162,7 +254,22 @@ const SeguimientoCobranza = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedRegistros.map((reg, index) => (
+                  {loading && (
+                    <tr>
+                      <td colSpan={7} style={{ padding: '2rem', textAlign: 'center' }}>
+                        Cargando cuotas…
+                      </td>
+                    </tr>
+                  )}
+                  {!loading && filteredRegistros.length === 0 && (
+                    <tr>
+                      <td colSpan={7} style={{ padding: '2rem', textAlign: 'center' }}>
+                        No hay cuotas. Genera cuotas al crear una póliza con prima total o monto por cuota.
+                      </td>
+                    </tr>
+                  )}
+                  {!loading &&
+                    paginatedRegistros.map((reg, index) => (
                     <motion.tr 
                       key={reg.id}
                       initial={{ opacity: 0, y: 20 }}
@@ -185,7 +292,7 @@ const SeguimientoCobranza = () => {
                       </td>
                       <td className="cobranza-cell-monto">
                         <span className="cobranza-monto">
-                          ${reg.monto.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                          ${Number(reg.monto).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                         </span>
                       </td>
                       <td className="cobranza-cell-status">
@@ -196,7 +303,7 @@ const SeguimientoCobranza = () => {
                         >
                           <div className={`cobranza-status-dot ${getStatusColor(reg.estatus)}`} />
                           <span className={`cobranza-status-text ${getStatusColor(reg.estatus)}`}>
-                            {reg.estatus}
+                            {estatusLabel(reg.estatus)}
                           </span>
                           
                           <AnimatePresence>
@@ -299,7 +406,7 @@ const SeguimientoCobranza = () => {
             {/* Paginación */}
             <div className="cobranza-pagination">
               <div className="cobranza-pagination-info">
-                Total: <span className="cobranza-pagination-highlight">{filteredRegistros.length}</span> trámites
+                Total: <span className="cobranza-pagination-highlight">{filteredRegistros.length}</span> cuotas
               </div>
               <div className="cobranza-pagination-controls">
                 <motion.button 
@@ -341,7 +448,7 @@ const SeguimientoCobranza = () => {
             >
               <div className="cobranza-modal-header">
                 
-                <h2 className="cobranza-modal-title">{isEditing ? 'Editar Seguimiento' : 'Nuevo Trámite'}</h2>
+                <h2 className="cobranza-modal-title">Editar cuota</h2>
                 <button onClick={() => setModalOpen(false)} className="cobranza-modal-close">
                   <FiX />
                 </button>
@@ -353,11 +460,14 @@ const SeguimientoCobranza = () => {
                     <label>Cliente *</label>
                     <div className="cobranza-input-wrapper">
                       <FiUser className="cobranza-input-icon" />
-                      <input 
-                        type="text" 
-                        value={currentRegistro.cliente || ''} 
-                        onChange={e => setCurrentRegistro({...currentRegistro, cliente: e.target.value})}
+                      <input
+                        type="text"
+                        value={currentRegistro.cliente || ''}
+                        onChange={(e) =>
+                          setCurrentRegistro({ ...currentRegistro, cliente: e.target.value })
+                        }
                         placeholder="Nombre completo"
+                        readOnly={!!currentRegistro._fromApi}
                         required
                       />
                     </div>
@@ -367,11 +477,14 @@ const SeguimientoCobranza = () => {
                     <label>Póliza *</label>
                     <div className="cobranza-input-wrapper">
                       <FiFileText className="cobranza-input-icon" />
-                      <input 
-                        type="text" 
-                        value={currentRegistro.poliza || ''} 
-                        onChange={e => setCurrentRegistro({...currentRegistro, poliza: e.target.value})}
+                      <input
+                        type="text"
+                        value={currentRegistro.poliza || ''}
+                        onChange={(e) =>
+                          setCurrentRegistro({ ...currentRegistro, poliza: e.target.value })
+                        }
                         placeholder="Número de póliza"
+                        readOnly={!!currentRegistro._fromApi}
                         required
                       />
                     </div>
@@ -381,11 +494,14 @@ const SeguimientoCobranza = () => {
                     <label>Agente *</label>
                     <div className="cobranza-input-wrapper">
                       <FiUser className="cobranza-input-icon" />
-                      <input 
-                        type="text" 
-                        value={currentRegistro.agente || ''} 
-                        onChange={e => setCurrentRegistro({...currentRegistro, agente: e.target.value})}
+                      <input
+                        type="text"
+                        value={currentRegistro.agente || ''}
+                        onChange={(e) =>
+                          setCurrentRegistro({ ...currentRegistro, agente: e.target.value })
+                        }
                         placeholder="Nombre del agente"
+                        readOnly={!!currentRegistro._fromApi}
                         required
                       />
                     </div>
@@ -399,7 +515,12 @@ const SeguimientoCobranza = () => {
                         type="number" 
                         step="0.01"
                         value={currentRegistro.monto || ''} 
-                        onChange={e => setCurrentRegistro({...currentRegistro, monto: parseFloat(e.target.value)})}
+                        onChange={(e) =>
+                          setCurrentRegistro({
+                            ...currentRegistro,
+                            monto: e.target.value === '' ? '' : parseFloat(e.target.value),
+                          })
+                        }
                         placeholder="0.00"
                         required
                       />
@@ -421,14 +542,17 @@ const SeguimientoCobranza = () => {
 
                   <div className="cobranza-form-group cobranza-full-width">
                     <label>Estatus *</label>
-                    <select 
-                      value={currentRegistro.estatus || 'Verde'} 
-                      onChange={e => setCurrentRegistro({...currentRegistro, estatus: e.target.value})}
+                    <select
+                      value={currentRegistro.estatus || 'pendiente'}
+                      onChange={(e) =>
+                        setCurrentRegistro({ ...currentRegistro, estatus: e.target.value })
+                      }
                       className="cobranza-select"
                     >
-                      <option value="Verde">Verde - Sin Pendientes</option>
-                      <option value="Amarillo">Amarillo - En proceso / Promesa</option>
-                      <option value="Rojo">Rojo - Urgente / Vencido</option>
+                      <option value="pendiente">Pendiente</option>
+                      <option value="pagado">Pagado</option>
+                      <option value="vencido">Vencido</option>
+                      <option value="cancelado">Cancelado</option>
                     </select>
                   </div>
                 </div>

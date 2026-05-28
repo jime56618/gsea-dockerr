@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -31,6 +31,70 @@ import { motion, AnimatePresence } from "framer-motion";
 import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
 import "./css/Calendario.css";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+
+function authHeaders() {
+  const token = localStorage.getItem("token");
+  return {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+async function fetchJson(url, options = {}) {
+  const res = await fetch(url, {
+    ...options,
+    headers: { ...authHeaders(), ...options.headers },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg =
+      data.message ||
+      (data.errors && Object.values(data.errors).flat().join(" ")) ||
+      `Error HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  return data;
+}
+
+function colorForCuotaEstatus(estatus) {
+  switch (estatus) {
+    case "pagado":
+      return "#16a34a";
+    case "vencido":
+    case "cancelado":
+      return "#dc2626";
+    default:
+      return "#2563eb";
+  }
+}
+
+function mapCuotaToFcEvent(c) {
+  const fecha = (c.fecha_programada || "").toString().slice(0, 10);
+  const cliente = c.poliza?.contratante?.nombre || "Cliente";
+  const numPol = c.poliza?.numero_poliza || "";
+  return {
+    id: String(c.id),
+    title: `Cuota ${c.numero_cuota} · ${cliente}`,
+    start: fecha,
+    allDay: true,
+    backgroundColor: colorForCuotaEstatus(c.estatus),
+    extendedProps: {
+      cuotaId: c.id,
+      cliente,
+      monto: new Intl.NumberFormat("es-MX", {
+        style: "currency",
+        currency: "MXN",
+      }).format(Number(c.monto)),
+      montoRaw: c.monto,
+      estatus: c.estatus,
+      poliza: numPol,
+      clienteId: null,
+    },
+  };
+}
 
 const CLIENTES_DATA = [
   { id: 1, nombre: "Juan Pérez", poliza: "GSEA-10023", monto: "$2,350", inicial: "J", email: "juan@email.com", telefono: "+52 555 123 4567" },
@@ -66,57 +130,30 @@ export default function CobranzaPage() {
   const [taskFilter, setTaskFilter] = useState("all");
   const [showTaskFilters, setShowTaskFilters] = useState(false);
 
-  const [events, setEvents] = useState([
-    {
-      id: 1,
-      title: "Cobranza Juan Pérez",
-      start: "2026-03-06T09:00:00",
-      color: "#2563eb",
-      clienteId: 1,
-      extendedProps: { cliente: "Juan Pérez", monto: "$2,350" }
-    },
-    {
-      id: 2,
-      title: "Recordatorio María Gómez",
-      start: "2026-03-07T12:00:00",
-      color: "#16a34a",
-      clienteId: 2,
-      extendedProps: { cliente: "María Gómez", monto: "$1,980" }
-    },
-    {
-      id: 3,
-      title: "Pago pendiente Luis Rodríguez",
-      start: "2026-03-08T10:30:00",
-      color: "#dc2626",
-      clienteId: 3,
-      extendedProps: { cliente: "Luis Rodríguez", monto: "$3,120" }
-    },
-    {
-      id: 4,
-      title: "Revisión de póliza - Juan Pérez",
-      start: "2026-03-09",
-      allDay: true,
-      color: "#8b5cf6",
-      extendedProps: { cliente: "Juan Pérez", monto: "$2,350" }
-    },
-    {
-      id: 5,
-      title: "Llamada de seguimiento María Gómez",
-      start: "2026-03-12T10:30:00",
-      color: "#f59e0b",
-      clienteId: 2,
-      extendedProps: { cliente: "María Gómez", monto: "$1,980" }
-    },
-    {
-      id: 6,
-      title: "Vencimiento de póliza Luis Rodríguez",
-      start: "2026-03-15",
-      allDay: true,
-      color: "#dc2626",
-      clienteId: 3,
-      extendedProps: { cliente: "Luis Rodríguez", monto: "$3,120" }
+  const [events, setEvents] = useState([]);
+  const [calendarLoading, setCalendarLoading] = useState(false);
+  const [calendarError, setCalendarError] = useState("");
+  const lastCalendarDateRef = useRef(null);
+
+  const loadCuotasForView = useCallback(async (date) => {
+    lastCalendarDateRef.current = date;
+    const y = date.getFullYear();
+    const m = date.getMonth() + 1;
+    setCalendarLoading(true);
+    setCalendarError("");
+    try {
+      const list = await fetchJson(
+        `${API_URL}/calendar/cobranza-cuotas?year=${y}&month=${m}`
+      );
+      const arr = Array.isArray(list) ? list : [];
+      setEvents(arr.map(mapCuotaToFcEvent));
+    } catch (e) {
+      setCalendarError(e.message || "No se pudieron cargar las cuotas");
+      setEvents([]);
+    } finally {
+      setCalendarLoading(false);
     }
-  ]);
+  }, []);
 
   const [chats, setChats] = useState({
     1: [
@@ -146,8 +183,20 @@ export default function CobranzaPage() {
   }, []);
 
   const openChatFromEvent = (info) => {
-    const cliente = CLIENTES_DATA.find(c => c.id === info.event.extendedProps?.clienteId) || CLIENTES_DATA[0];
-    setActiveChat(cliente);
+    const ep = info.event.extendedProps || {};
+    if (ep.cuotaId != null) {
+      setActiveChat({
+        id: ep.cuotaId,
+        nombre: ep.cliente || "Cliente",
+        poliza: ep.poliza || "",
+        monto: ep.monto || "",
+        inicial: (ep.cliente || "C").charAt(0).toUpperCase(),
+      });
+    } else {
+      const cliente =
+        CLIENTES_DATA.find((c) => c.id === ep.clienteId) || CLIENTES_DATA[0];
+      setActiveChat(cliente);
+    }
     setChatModal(true);
   };
 
@@ -159,31 +208,71 @@ export default function CobranzaPage() {
     }
   };
 
-  const deleteEvent = () => {
-    if (eventToDelete) {
-      setEvents(events.filter(e => e.id !== eventToDelete.id));
-      setDeleteModal(false);
-      setEventToDelete(null);
+  const deleteEvent = async () => {
+    if (!eventToDelete) return;
+    const cuotaId = eventToDelete.extendedProps?.cuotaId;
+    if (cuotaId != null) {
+      try {
+        await fetchJson(`${API_URL}/cobranza_cuotas/${cuotaId}`, { method: "DELETE" });
+        if (lastCalendarDateRef.current) {
+          await loadCuotasForView(lastCalendarDateRef.current);
+        }
+      } catch (e) {
+        window.alert(e.message || "Error al eliminar");
+        return;
+      }
+    } else {
+      setEvents(events.filter((e) => e.id !== eventToDelete.id));
     }
+    setDeleteModal(false);
+    setEventToDelete(null);
   };
 
   const openEditModal = () => {
+    const ev = contextMenu.event;
+    const ext = ev.extendedProps || {};
+    const startDay = ev.startStr ? ev.startStr.slice(0, 10) : "";
     setEditingEvent({
-      id: contextMenu.event.id,
-      title: contextMenu.event.title,
-      start: contextMenu.event.startStr,
-      color: contextMenu.event.backgroundColor
+      id: ev.id,
+      cuotaId: ext.cuotaId ?? null,
+      title: ev.title,
+      start: startDay,
+      color: ev.backgroundColor || "#2563eb",
+      monto: ext.montoRaw != null ? String(ext.montoRaw) : "",
+      estatus: ext.estatus ?? "pendiente",
     });
     setEditModal(true);
     setContextMenu(null);
   };
 
-  const saveEventEdit = () => {
-    setEvents(
-      events.map(e =>
-        e.id === editingEvent.id ? { ...e, title: editingEvent.title, color: editingEvent.color } : e
-      )
-    );
+  const saveEventEdit = async () => {
+    if (!editingEvent) return;
+    if (editingEvent.cuotaId != null) {
+      try {
+        await fetchJson(`${API_URL}/cobranza_cuotas/${editingEvent.cuotaId}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            fecha_programada: editingEvent.start,
+            monto: Number(editingEvent.monto),
+            estatus: editingEvent.estatus,
+          }),
+        });
+        if (lastCalendarDateRef.current) {
+          await loadCuotasForView(lastCalendarDateRef.current);
+        }
+      } catch (e) {
+        window.alert(e.message || "Error al guardar");
+        return;
+      }
+    } else {
+      setEvents(
+        events.map((e) =>
+          e.id === editingEvent.id
+            ? { ...e, title: editingEvent.title, color: editingEvent.color }
+            : e
+        )
+      );
+    }
     setEditModal(false);
   };
 
@@ -212,10 +301,8 @@ Si tienes alguna duda estoy para ayudarte.`;
     const now = new Date();
     const time = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')} ${now.getHours() >= 12 ? 'PM' : 'AM'}`;
 
-    const updated = [
-      ...chats[activeChat.id],
-      { from: "agente", text: message, time }
-    ];
+    const prev = chats[activeChat.id] || [];
+    const updated = [...prev, { from: "agente", text: message, time }];
 
     setChats({
       ...chats,
@@ -298,7 +385,14 @@ Si tienes alguna duda estoy para ayudarte.`;
           <div className="cobranza-header">
             <div>
               <h1 className="cobranza-title">Cobranza y Seguimiento</h1>
-              <p className="cobranza-subtitle">Gestiona pagos, recordatorios y comunicación con clientes</p>
+              <p className="cobranza-subtitle">
+              </p>
+              {calendarError && (
+                <p style={{ color: "#b91c1c", marginTop: 8 }}>{calendarError}</p>
+              )}
+              {calendarLoading && (
+                <p style={{ opacity: 0.8, marginTop: 4 }}>Cargando cuotas del mes…</p>
+              )}
             </div>
             
             <div className="cobranza-header-actions">
@@ -337,6 +431,9 @@ Si tienes alguna duda estoy para ayudarte.`;
                 <FullCalendar
                   plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
                   initialView="dayGridMonth"
+                  datesSet={(info) => {
+                    loadCuotasForView(info.view.currentStart);
+                  }}
                   headerToolbar={{
                     left: "prev,next today",
                     center: "title",
@@ -592,8 +689,50 @@ Si tienes alguna duda estoy para ayudarte.`;
                     value={editingEvent.title}
                     onChange={(e) => setEditingEvent({ ...editingEvent, title: e.target.value })}
                     placeholder="Título del recordatorio"
+                    disabled={editingEvent.cuotaId != null}
                   />
                 </div>
+
+                {editingEvent.cuotaId != null && (
+                  <>
+                    <div className="cobranza-form-group">
+                      <label>Fecha programada</label>
+                      <input
+                        type="date"
+                        value={editingEvent.start || ""}
+                        onChange={(e) =>
+                          setEditingEvent({ ...editingEvent, start: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="cobranza-form-group">
+                      <label>Monto</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={editingEvent.monto}
+                        onChange={(e) =>
+                          setEditingEvent({ ...editingEvent, monto: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="cobranza-form-group">
+                      <label>Estatus</label>
+                      <select
+                        value={editingEvent.estatus}
+                        onChange={(e) =>
+                          setEditingEvent({ ...editingEvent, estatus: e.target.value })
+                        }
+                      >
+                        <option value="pendiente">Pendiente</option>
+                        <option value="pagado">Pagado</option>
+                        <option value="vencido">Vencido</option>
+                        <option value="cancelado">Cancelado</option>
+                      </select>
+                    </div>
+                  </>
+                )}
 
                 <div className="cobranza-form-group">
                   <label>Color</label>
@@ -602,6 +741,7 @@ Si tienes alguna duda estoy para ayudarte.`;
                       type="color"
                       value={editingEvent.color}
                       onChange={(e) => setEditingEvent({ ...editingEvent, color: e.target.value })}
+                      disabled={editingEvent.cuotaId != null}
                     />
                     <span>{editingEvent.color}</span>
                   </div>
@@ -798,7 +938,7 @@ Si tienes alguna duda estoy para ayudarte.`;
                       </div>
 
                       <div className="cobranza-chat-messages">
-                        {chats[activeChat.id]?.map((msg, i) => (
+                        {(chats[activeChat.id] || []).map((msg, i) => (
                           <div
                             key={i}
                             className={`cobranza-chat-message ${msg.from === 'agente' ? 'agent' : 'client'}`}
