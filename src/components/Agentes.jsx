@@ -19,6 +19,8 @@ import {
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
 import './css/Agentes.css';
+import { apiFetch, ApiError } from '../utils/apiClient';
+import { getActiveWorkspaceId } from '../utils/workspaceStorage';
 
 export default function SeccionAgentes() {
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
@@ -30,7 +32,6 @@ export default function SeccionAgentes() {
   const [filtroEstado, setFiltroEstado] = useState('todos');
   const [filtroEmpresa, setFiltroEmpresa] = useState('todos');
   const [ordenamiento, setOrdenamiento] = useState('reciente');
-  const API_URL = 'http://localhost:8000/api';
 
   const [agentToEdit, setAgentToEdit] = useState(null);
   const [agentToDelete, setAgentToDelete] = useState(null);
@@ -53,32 +54,6 @@ export default function SeccionAgentes() {
     status: 'activo',
     claves: [{ aseguradora_id: '', clave_agente: '' }],
   });
-
-  const safeParse = (value) => {
-    try {
-      return value ? JSON.parse(value) : null;
-    } catch {
-      return null;
-    }
-  };
-
-  const getAuthContext = () => {
-    const token = localStorage.getItem('token');
-    const workspaceRaw = localStorage.getItem('workspace_activo');
-    const currentIdRaw = localStorage.getItem('current_workspace_id');
-    const userRaw = localStorage.getItem('user');
-    const workspace = safeParse(workspaceRaw);
-    const user = safeParse(userRaw);
-    const fromStorageId = currentIdRaw ? Number(currentIdRaw) : null;
-    const workspaceId =
-      workspace?.id ||
-      (Number.isFinite(fromStorageId) ? fromStorageId : null) ||
-      user?.current_workspace_id ||
-      user?.workspace_id ||
-      user?.workspace?.id ||
-      (Array.isArray(user?.workspaces) ? user.workspaces[0]?.id : null);
-    return { token, workspaceId };
-  };
 
   const normalizeWorkspaceAgent = (item) => ({
     id: item.id,
@@ -167,34 +142,22 @@ export default function SeccionAgentes() {
 
   const fetchAgentes = useCallback(async () => {
     try {
-      const { token, workspaceId } = getAuthContext();
       setApiError('');
-      if (!token) {
-        setApiError('No hay sesión activa.');
-        setLoading(false);
-        return;
-      }
+      const workspaceId = getActiveWorkspaceId();
       if (!workspaceId) {
-        setApiError('No se detectó workspace activo.');
+        setApiError('No se detectó workspace activo. Cierra sesión y vuelve a entrar.');
         setLoading(false);
         return;
       }
-      const res = await fetch(`${API_URL}/agentes_workspace?workspace_id=${workspaceId}&per_page=15`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/json',
-        },
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        setApiError(json?.message || 'Error al cargar agentes.');
-        setData([]);
-        return;
-      }
+      const json = await apiFetch(
+        `/agentes_workspace?workspace_id=${workspaceId}&per_page=15`
+      );
       setData((json.data || []).map(normalizeWorkspaceAgent));
     } catch (error) {
       console.error('Error cargando agentes:', error);
-      setApiError('Error de conexión con el servidor.');
+      setApiError(
+        error instanceof ApiError ? error.message : 'Error de conexión con el servidor.'
+      );
     } finally {
       setLoading(false);
     }
@@ -202,16 +165,8 @@ export default function SeccionAgentes() {
 
   const fetchAseguradoras = useCallback(async () => {
     try {
-      const { token } = getAuthContext();
-      if (!token) return;
-      const res = await fetch(`${API_URL}/aseguradoras?per_page=100`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/json',
-        },
-      });
-      const json = await res.json();
-      if (res.ok) setAseguradoras(json.data || []);
+      const json = await apiFetch('/aseguradoras?per_page=100');
+      setAseguradoras(json.data || []);
     } catch (error) {
       console.error('Error cargando aseguradoras:', error);
     }
@@ -665,9 +620,9 @@ export default function SeccionAgentes() {
                     disabled={saving}
                     onClick={async () => {
                       try {
-                        const { token, workspaceId } = getAuthContext();
-                        if (!token || !workspaceId) {
-                          setApiError('Falta token o workspace activo.');
+                        const workspaceId = getActiveWorkspaceId();
+                        if (!workspaceId) {
+                          setApiError('Falta workspace activo. Cierra sesión y vuelve a entrar.');
                           return;
                         }
                         if (!formData.cedula || !formData.nombre) {
@@ -676,9 +631,9 @@ export default function SeccionAgentes() {
                         }
                         setSaving(true);
                         setApiError('');
-                        const endpoint = agentToEdit
-                          ? `${API_URL}/agentes_workspace/${agentToEdit.id}`
-                          : `${API_URL}/agentes_workspace`;
+                        const path = agentToEdit
+                          ? `/agentes_workspace/${agentToEdit.id}`
+                          : '/agentes_workspace';
                         const method = agentToEdit ? 'PUT' : 'POST';
                         const payload = {
                           workspace_id: workspaceId,
@@ -706,26 +661,20 @@ export default function SeccionAgentes() {
                               clave_agente: c.clave_agente,
                             })),
                         };
-                        const res = await fetch(endpoint, {
+                        await apiFetch(path, {
                           method,
-                          headers: {
-                            Authorization: `Bearer ${token}`,
-                            Accept: 'application/json',
-                            'Content-Type': 'application/json',
-                          },
                           body: JSON.stringify(payload),
                         });
-                        const json = await res.json();
-                        if (!res.ok) {
-                          setApiError(json?.message || 'No se pudo guardar el agente.');
-                          return;
-                        }
                         setAgentToEdit(null);
                         setIsAddModalOpen(false);
                         await fetchAgentes();
                       } catch (error) {
                         console.error(error);
-                        setApiError('Error de conexión con el servidor.');
+                        setApiError(
+                          error instanceof ApiError
+                            ? error.message
+                            : 'Error de conexión con el servidor.'
+                        );
                       } finally {
                         setSaving(false);
                       }
@@ -758,25 +707,19 @@ export default function SeccionAgentes() {
                   onClick={async () => {
                     if (!agentToDelete) return;
                     try {
-                      const { token } = getAuthContext();
                       setApiError('');
-                      const res = await fetch(`${API_URL}/agentes_workspace/${agentToDelete.id}`, {
+                      await apiFetch(`/agentes_workspace/${agentToDelete.id}`, {
                         method: 'DELETE',
-                        headers: {
-                          Authorization: `Bearer ${token}`,
-                          Accept: 'application/json',
-                        },
                       });
-                      if (!res.ok) {
-                        const json = await res.json();
-                        setApiError(json?.message || 'No se pudo eliminar el agente.');
-                        return;
-                      }
                       setData((prev) => prev.filter((a) => a.id !== agentToDelete.id));
                       setAgentToDelete(null);
                     } catch (error) {
                       console.error(error);
-                      setApiError('Error de conexión con el servidor.');
+                      setApiError(
+                        error instanceof ApiError
+                          ? error.message
+                          : 'Error de conexión con el servidor.'
+                      );
                     }
                   }} 
                   className="agents-delete-confirm"

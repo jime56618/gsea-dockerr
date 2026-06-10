@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import './css/Dashboard.css';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
-import { persistWorkspaceFromUser } from '../utils/workspaceStorage'; 
+import { persistWorkspaceFromUser } from '../utils/workspaceStorage';
+import { TOKEN_KEY } from '../utils/constants'; 
 import { motion, animate } from 'framer-motion'; 
 import { 
   Users, ShieldCheck, BadgeDollarSign, TrendingUp, 
@@ -44,7 +45,7 @@ const EMPTY_DASHBOARD = {
 };
 
 function authHeaders() {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem(TOKEN_KEY);
   return {
     Accept: 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),

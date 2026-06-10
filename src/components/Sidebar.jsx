@@ -1,39 +1,64 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { 
-  LayoutDashboard, Users, User, FileText, 
-  Calendar, DollarSign, GraduationCap, 
-  ClipboardList, LogOut
+import {
+  LayoutDashboard, Users, User, FileText,
+  Calendar, DollarSign, GraduationCap,
+  ClipboardList, LogOut, Settings,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "../context/AuthContext";
+import { MENU_ITEMS, ADMIN_MENU_ITEMS, filterMenuByPermissions } from "../utils/permissions";
 
-// Importa tu logo desde assets
-import logoGSEA from "../assets/images/logo-gsea.png"; // Ajusta la ruta según tu estructura
+import logoGSEA from "../assets/images/logo-gsea.png";
 
-export default function SidebarGSEA() {
+const PATH_ICONS = {
+  "/dashboard": LayoutDashboard,
+  "/tramites": ClipboardList,
+  "/agentes": Users,
+  "/clientes": User,
+  "/seguimiento-polizas": FileText,
+  "/seguimiento-cobranza": DollarSign,
+  "/capacitacion": GraduationCap,
+  "/calendario": Calendar,
+  "/configuracion/equipo": Users,
+  "/configuracion/roles": Settings,
+  "/configuracion/facturacion": DollarSign,
+};
+
+function itemIcon(path) {
+  const Icon = PATH_ICONS[path] || FileText;
+  return <Icon size={22} />;
+}
+
+export default function SidebarGSEA({ onExpand }) {
   const [isExpanded, setIsExpanded] = useState(true);
   const location = useLocation();
+  const { session, logout } = useAuth();
 
-  const menuItems = [
-    { path: "/dashboard", icon: <LayoutDashboard size={22} />, label: "Dashboard" },
-    { path: "/tramites", icon: <ClipboardList size={22} />, label: "Trámites" },
-    { path: "/agentes", icon: <Users size={22} />, label: "Agentes" },
-    { path: "/clientes", icon: <User size={22} />, label: "Clientes" },
-    { path: "/seguimiento-polizas", icon: <FileText size={22} />, label: "Seguimiento de Pólizas" },
-    { path: "/seguimiento-cobranza", icon: <DollarSign size={22} />, label: "Seguimiento de Cobranza" },
-    { path: "/capacitacion", icon: <GraduationCap size={22} />, label: "Capacitación" },
-    { path: "/calendario", icon: <Calendar size={22} />, label: "Calendario" },
-  ];
+  const mainMenu = useMemo(
+    () =>
+      filterMenuByPermissions(MENU_ITEMS, session).map((item) => ({
+        ...item,
+        icon: itemIcon(item.path),
+      })),
+    [session]
+  );
 
-  // Función para alternar expansión
-  const handleLogout = () => {
-  localStorage.removeItem("token");
-  localStorage.removeItem("user");
-  localStorage.removeItem("token_expiration");
+  const adminMenu = useMemo(
+    () =>
+      filterMenuByPermissions(ADMIN_MENU_ITEMS, session).map((item) => ({
+        ...item,
+        icon: itemIcon(item.path),
+      })),
+    [session]
+  );
 
-  window.location.href = "/";
-};
-  const toggleExpand = () => setIsExpanded(!isExpanded);
+  const handleLogout = () => logout();
+  const toggleExpand = () => {
+    const next = !isExpanded;
+    setIsExpanded(next);
+    onExpand?.(next);
+  };
 
   return (
     <>
@@ -117,7 +142,7 @@ export default function SidebarGSEA() {
 
         {/* Módulos */}
         <nav className="flex-1 overflow-y-auto no-scrollbar px-3 py-6 space-y-1">
-          {menuItems.map((item) => {
+          {mainMenu.map((item) => {
             const isActive = location.pathname === item.path;
             return (
               <Link key={item.path} to={item.path} className="block group">
@@ -166,6 +191,44 @@ export default function SidebarGSEA() {
                       {item.label}
                     </div>
                   )}
+                </motion.div>
+              </Link>
+            );
+          })}
+
+          {adminMenu.length > 0 && isExpanded && (
+            <p className="px-3 pt-4 pb-1 text-[10px] uppercase tracking-widest text-blue-300/60 font-bold">
+              Configuración
+            </p>
+          )}
+          {adminMenu.map((item) => {
+            const isActive = location.pathname === item.path;
+            return (
+              <Link key={item.path} to={item.path} className="block group">
+                <motion.div
+                  className={`relative flex items-center h-11 rounded-xl transition-all duration-300 menu-item-hover ${
+                    isActive
+                      ? "bg-gradient-to-r from-blue-600 to-blue-500 shadow-lg shadow-blue-600/30"
+                      : "hover:bg-blue-800/30"
+                  } px-3`}
+                  whileHover={{ x: isExpanded ? 8 : 0 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <div className={`${isActive ? 'text-white' : 'text-blue-300/80 group-hover:text-blue-200'} transition-colors`}>
+                    {item.icon}
+                  </div>
+                  <AnimatePresence mode="wait">
+                    {isExpanded && (
+                      <motion.span
+                        className="ml-4 font-medium text-sm tracking-wide"
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -10 }}
+                      >
+                        {item.label}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
                 </motion.div>
               </Link>
             );

@@ -1,0 +1,98 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+.gsea-layout {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  overflow-x: hidden;
+  font-family: 'Inter', sans-serif;
+}
+
+.gsea-layout-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  transition: margin-left 0.3s ease;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.gsea-layout-main--expanded {
+  margin-left: 280px;
+}
+
+.gsea-layout-main--collapsed {
+  margin-left: 88px;
+}
+
+.gsea-layout-content {
+  flex: 1;
+  padding: 0 1.5rem 2.5rem;
+  max-width: 1400px;
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .gsea-layout-main--expanded,
+  .gsea-layout-main--collapsed {
+    margin-left: 0 !important;
+  }
+
+  .gsea-layout-content {
+    padding: 0 1rem 2rem;
+  }
+}
+
+/* --- Encabezado de páginas de configuración --- */
+.gsea-config-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.75rem;
+  flex-wrap: wrap;
+}
+
+.gsea-config-header__left {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.gsea-config-header__icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #1e488f 0%, #001e42 100%);
+  color: #dbe64c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 14px rgba(30, 72, 143, 0.25);
+}
+
+.gsea-config-header__title {
+  font-size: 1.875rem;
+  font-weight: 800;
+  color: #001f3f;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.gsea-config-header__sub {
+  margin: 0.35rem 0 0;
+  color: #64748b;
+  font-size: 0.95rem;
+  max-width: 42rem;
+}
+
+.gsea-config-header__actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}

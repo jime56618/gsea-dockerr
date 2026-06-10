@@ -1,0 +1,594 @@
+/* --- Trial banner --- */
+.gsea-trial-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 1.25rem;
+  background: linear-gradient(90deg, #1e488f 0%, #1b6f81 100%);
+  color: #fff;
+  font-size: 0.875rem;
+  flex-wrap: wrap;
+}
+
+.gsea-trial-banner--urgent {
+  background: linear-gradient(90deg, #b45309 0%, #dc2626 100%);
+}
+
+.gsea-trial-banner__date {
+  opacity: 0.85;
+  font-size: 0.8rem;
+}
+
+.gsea-trial-banner__cta {
+  background: #dbe64c;
+  color: #09324a;
+  padding: 0.35rem 1rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.8rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.gsea-trial-banner__cta:hover {
+  filter: brightness(1.05);
+}
+
+/* --- App shell margins (alineado con sidebar 280/88) --- */
+.gsea-app-shell {
+  min-height: 100vh;
+  background: #f1f5f9;
+}
+
+.gsea-app-main {
+  transition: margin-left 0.3s ease;
+  min-height: 100vh;
+}
+
+.gsea-app-main--expanded {
+  margin-left: 280px;
+}
+
+.gsea-app-main--collapsed {
+  margin-left: 88px;
+}
+
+/* --- Billing locked page --- */
+.gsea-billing-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: linear-gradient(135deg, #001e42 0%, #1e488f 50%, #09324a 100%);
+}
+
+.gsea-billing-card {
+  max-width: 480px;
+  width: 100%;
+  background: #fff;
+  border-radius: 1.25rem;
+  padding: 2.5rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+  text-align: center;
+}
+
+.gsea-billing-card h1 {
+  font-size: 1.5rem;
+  color: #09324a;
+  margin-bottom: 0.75rem;
+}
+
+.gsea-billing-card p {
+  color: #64748b;
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
+
+.gsea-billing-btn {
+  width: 100%;
+  padding: 0.85rem;
+  border: none;
+  border-radius: 0.75rem;
+  background: #1e488f;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.gsea-billing-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.gsea-billing-btn--secondary {
+  background: transparent;
+  color: #1e488f;
+  border: 2px solid #1e488f;
+  margin-top: 0.75rem;
+}
+
+/* --- Config pages (contenido dentro de PageLayout) --- */
+.gsea-config-page {
+  padding: 0;
+  max-width: none;
+}
+
+.gsea-config-loading {
+  color: #64748b;
+  padding: 2rem 0;
+}
+
+.gsea-config-muted {
+  color: #64748b;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.gsea-config-empty {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: #64748b;
+}
+
+.gsea-config-empty--inline {
+  padding: 3rem 1rem;
+}
+
+.gsea-config-empty__icon {
+  color: #94a3b8;
+  margin-bottom: 1rem;
+}
+
+.gsea-config-grid {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.gsea-config-grid--2 {
+  grid-template-columns: 1fr 280px;
+}
+
+.gsea-config-grid--3 {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+@media (max-width: 900px) {
+  .gsea-config-grid--2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.gsea-stat-card {
+  background: #fff;
+  border-radius: 1rem;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e2e8f0;
+}
+
+.gsea-stat-card--accent {
+  background: linear-gradient(135deg, #1e488f 0%, #001e42 100%);
+  border: none;
+  color: #fff;
+}
+
+.gsea-stat-card--accent .gsea-stat-card__label,
+.gsea-stat-card--accent .gsea-stat-card__hint {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.gsea-stat-card__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+.gsea-stat-card__value {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #001f3f;
+  margin: 0;
+  line-height: 1.1;
+}
+
+.gsea-stat-card__value--sm {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.gsea-stat-card__hint {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin: 0.35rem 0 0;
+}
+
+.gsea-card {
+  background: #fff;
+  border-radius: 1rem;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e2e8f0;
+  margin-bottom: 1rem;
+}
+
+.gsea-card--section {
+  margin-bottom: 1.25rem;
+}
+
+.gsea-card__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #001f3f;
+  margin: 0 0 1rem;
+}
+
+.gsea-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  margin-top: 0.5rem;
+}
+
+.gsea-badge--success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.gsea-badge--danger {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.gsea-badge--muted {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.gsea-usage-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+
+.gsea-usage-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #334155;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.gsea-usage-item svg {
+  color: #1e488f;
+}
+
+.gsea-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.gsea-form-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.gsea-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 0.35rem;
+}
+
+.gsea-input-icon-wrap {
+  position: relative;
+  margin-bottom: 0.75rem;
+}
+
+.gsea-input-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.gsea-input--icon {
+  padding-left: 2.25rem !important;
+}
+
+.gsea-invite-link-box {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.gsea-invite-link-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.gsea-invite-link-text {
+  flex: 1;
+  font-size: 0.75rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  word-break: break-all;
+  color: #334155;
+}
+
+.gsea-btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  background: #fff;
+  cursor: pointer;
+  color: #1e488f;
+}
+
+.gsea-btn-icon:hover {
+  background: #f1f5f9;
+}
+
+.gsea-table-wrap {
+  overflow-x: auto;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+}
+
+.gsea-table--styled thead {
+  background: #f8fafc;
+}
+
+.gsea-table--styled th {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.gsea-msg {
+  font-size: 0.875rem;
+  margin-bottom: 0.75rem;
+}
+
+.gsea-msg--ok {
+  color: #16a34a;
+}
+
+.gsea-msg--error {
+  color: #dc2626;
+}
+
+.gsea-btn-primary--lg {
+  padding: 0.75rem 1.5rem;
+  margin-top: 0.5rem;
+}
+
+.gsea-roles-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .gsea-roles-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.gsea-role-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.gsea-role-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  text-align: left;
+  padding: 0.65rem 0.85rem;
+  margin-bottom: 0.35rem;
+  border-radius: 0.5rem;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.gsea-role-item:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.gsea-role-item--active {
+  border-color: #1e488f;
+  background: #eff6ff;
+  box-shadow: 0 0 0 1px #1e488f;
+}
+
+.gsea-role-item__name {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: #001f3f;
+}
+
+.gsea-role-item__tag {
+  font-size: 0.65rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.gsea-roles-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.gsea-roles-panel__head .gsea-card__title {
+  margin-bottom: 0;
+}
+
+.gsea-perm-desc {
+  display: block;
+  color: #94a3b8;
+  font-size: 0.75rem;
+  font-weight: 400;
+  margin-top: 0.15rem;
+}
+
+/* --- Invitación pública (marca GSEA) --- */
+.gsea-invite-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: linear-gradient(135deg, #001e42 0%, #1e488f 45%, #09324a 100%);
+}
+
+.gsea-invite-card {
+  max-width: 440px;
+  width: 100%;
+  background: #fff;
+  border-radius: 1.25rem;
+  padding: 2rem 2.25rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+}
+
+.gsea-invite-card h1 {
+  font-size: 1.35rem;
+  color: #001f3f;
+  text-align: center;
+  margin: 0 0 0.5rem;
+  font-weight: 800;
+}
+
+.gsea-invite-card .gsea-invite-meta {
+  text-align: center;
+  color: #64748b;
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
+
+.gsea-invite-brand {
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #1e488f;
+  margin-bottom: 1rem;
+}
+
+
+.gsea-card {
+  background: #fff;
+  border-radius: 1rem;
+  padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  margin-bottom: 1rem;
+}
+
+.gsea-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.gsea-table th,
+.gsea-table td {
+  text-align: left;
+  padding: 0.65rem 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.gsea-input,
+.gsea-select {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.gsea-btn-primary {
+  background: #1e488f;
+  color: #fff;
+  border: none;
+  padding: 0.5rem 1.25rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.gsea-btn-primary:disabled {
+  opacity: 0.6;
+}
+
+.gsea-error {
+  color: #dc2626;
+  font-size: 0.875rem;
+  margin-bottom: 0.75rem;
+}
+
+.gsea-perm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.5rem;
+}
+
+.gsea-perm-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  padding: 0.35rem;
+  border-radius: 0.35rem;
+}
+
+.gsea-perm-item:hover {
+  background: #f8fafc;
+}
+
+.gsea-workspace-switcher select {
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid #cbd5e1;
+  font-size: 0.8rem;
+  max-width: 200px;
+}

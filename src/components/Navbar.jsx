@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { persistWorkspaceFromUser } from '../utils/workspaceStorage';
+import { useAuth } from '../context/AuthContext';
+import { API_URL, TOKEN_KEY } from '../utils/constants';
 import { motion, AnimatePresence } from 'framer-motion';
+import WorkspaceSwitcher from './WorkspaceSwitcher';
+import TrialBanner from './TrialBanner';
 import { 
   Bell, Settings, X, Bug, UserPlus, 
   Moon, Languages, Smartphone, ChevronRight,
@@ -69,11 +72,11 @@ function ModuleRow({ icon, title, subtitle, badge, color }) {
 
 // --- COMPONENTE PRINCIPAL ---
 export default function UserNavbar() {
+  const { user, role, subscription, loading: authLoading } = useAuth();
 
   const [activePanel, setActivePanel] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
-  const [loading, setLoading] = useState(true);
 
   const [userData, setUserData] = useState({
     name: '',
@@ -81,41 +84,21 @@ export default function UserNavbar() {
     avatarFile: null
   });
 
+  useEffect(() => {
+    if (user) {
+      setUserData((prev) => ({
+        ...prev,
+        ...user,
+        name: user.name || prev.name,
+        avatar: user.avatar || prev.avatar,
+        avatarFile: null,
+      }));
+    }
+  }, [user]);
+
   const togglePanel = (panel) => {
     setActivePanel(activePanel === panel ? null : panel);
   };
-
-  // 🔥 GET USER
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const token = localStorage.getItem('token'); // ✅ corregido
-
-        const res = await fetch('http://localhost:8000/api/user', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: 'application/json',
-          }
-        });
-
-        const data = await res.json();
-
-        setUserData({
-          ...data,
-          avatarFile: null
-        });
-
-        localStorage.setItem('user', JSON.stringify(data));
-        persistWorkspaceFromUser(data);
-        setLoading(false);
-
-      } catch (err) {
-        console.error(err);
-      }
-    };
-
-    fetchUser();
-  }, []);
 
   // 🔥 IMAGE CHANGE
   const handleImageChange = (e) => {
@@ -132,7 +115,7 @@ export default function UserNavbar() {
   // 🔥 SAVE PROFILE
   const handleSave = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem(TOKEN_KEY);
 
       const formData = new FormData();
       formData.append('name', userData.name);
@@ -141,7 +124,7 @@ export default function UserNavbar() {
         formData.append('avatar', userData.avatarFile);
       }
 
-      const res = await fetch('http://localhost:8000/api/user', {
+      const res = await fetch(`${API_URL}/user`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -157,8 +140,6 @@ export default function UserNavbar() {
         avatarFile: null
       });
 
-      localStorage.setItem('user', JSON.stringify(data));
-      persistWorkspaceFromUser(data);
       setIsEditModalOpen(false);
 
     } catch (err) {
@@ -166,15 +147,24 @@ export default function UserNavbar() {
     }
   };
 
-  if (loading) return <p className="px-8">Cargando...</p>;
+  if (authLoading) return <p className="px-8">Cargando...</p>;
 
   // 🔥 AVATAR DINÁMICO
   const avatarSrc = userData.avatarFile
     ? URL.createObjectURL(userData.avatarFile)
     : userData.avatar || `https://ui-avatars.com/api/?name=${userData.name}`;
 
+  const roleLabel = role?.name || role?.slug || '';
+  const trialHint =
+    subscription?.status === 'trialing'
+      ? ` · Trial ${subscription.days_left}d`
+      : '';
+
   return (
-    <div className="flex justify-end items-center gap-3 pt-8 px-8 mb-10 relative">
+    <>
+    <TrialBanner />
+    <div className="flex justify-end items-center gap-3 pt-8 px-8 mb-10 relative flex-wrap">
+      <WorkspaceSwitcher />
 
       {/* SETTINGS */}
       <button onClick={() => togglePanel('settings')}
@@ -196,6 +186,12 @@ export default function UserNavbar() {
 
         <div>
           <p className="font-bold">{userData.name}</p>
+          {(roleLabel || trialHint) && (
+            <p className="text-xs text-slate-500">
+              {roleLabel}
+              {trialHint}
+            </p>
+          )}
         </div>
       </div>
 
@@ -314,5 +310,6 @@ export default function UserNavbar() {
       </AnimatePresence>
 
     </div>
+    </>
   );
 }
