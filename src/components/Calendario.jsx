@@ -23,7 +23,9 @@ import {
   User,
   FileText,
   DollarSign,
-  XCircle
+  XCircle,
+  ClipboardList,
+  Users
 } from "lucide-react";
 
 import { motion, AnimatePresence } from "framer-motion";
@@ -96,6 +98,28 @@ function mapCuotaToFcEvent(c) {
   };
 }
 
+function mapCalendarEventToFcEvent(e) {
+  return {
+    id: `manual-${e.id}`,
+    title: e.title,
+    start: e.starts_at,
+    end: e.ends_at,
+    backgroundColor: e.color || "#2563eb",
+
+    extendedProps: {
+      calendarEventId: e.id,
+      cliente: e.title,
+      descripcion: e.description,
+      googleEventId: e.google_event_id,
+
+      // Nuevos campos
+      type: e.type,
+      priority: e.priority,
+      status: e.status,
+    },
+  };
+}
+
 const CLIENTES_DATA = [
   { id: 1, nombre: "Juan Pérez", poliza: "GSEA-10023", monto: "$2,350", inicial: "J", email: "juan@email.com", telefono: "+52 555 123 4567" },
   { id: 2, nombre: "María Gómez", poliza: "GSEA-10024", monto: "$1,980", inicial: "M", email: "maria@email.com", telefono: "+52 555 234 5678" },
@@ -107,6 +131,14 @@ export default function CobranzaPage() {
   const [chatModal, setChatModal] = useState(false);
   const [activeChat, setActiveChat] = useState(null);
   const [message, setMessage] = useState("");
+  const [taskCategory, setTaskCategory] = useState("follow_up");
+
+  const [newType, setNewType] = useState("follow_up");
+  const [newPriority, setNewPriority] = useState("medium");
+  const [newStatus, setNewStatus] = useState("pending");
+
+  const [activityTypeModal, setActivityTypeModal] = useState(false);
+  const [selectedActivityType, setSelectedActivityType] = useState("");
 
   const [contextMenu, setContextMenu] = useState(null);
   const [editModal, setEditModal] = useState(false);
@@ -136,24 +168,30 @@ export default function CobranzaPage() {
   const lastCalendarDateRef = useRef(null);
 
   const loadCuotasForView = useCallback(async (date) => {
-    lastCalendarDateRef.current = date;
-    const y = date.getFullYear();
-    const m = date.getMonth() + 1;
-    setCalendarLoading(true);
-    setCalendarError("");
-    try {
-      const list = await fetchJson(
-        `${API_URL}/calendar/cobranza-cuotas?year=${y}&month=${m}`
-      );
-      const arr = Array.isArray(list) ? list : [];
-      setEvents(arr.map(mapCuotaToFcEvent));
-    } catch (e) {
-      setCalendarError(e.message || "No se pudieron cargar las cuotas");
-      setEvents([]);
-    } finally {
-      setCalendarLoading(false);
-    }
-  }, []);
+  lastCalendarDateRef.current = date;
+  const y = date.getFullYear();
+  const m = date.getMonth() + 1;
+
+  setCalendarLoading(true);
+  setCalendarError("");
+
+  try {
+    const [cuotasRes, eventsRes] = await Promise.all([
+      fetchJson(`${API_URL}/calendar/cobranza-cuotas?year=${y}&month=${m}`),
+      fetchJson(`${API_URL}/calendar/events`),
+    ]);
+
+    const cuotas = Array.isArray(cuotasRes) ? cuotasRes.map(mapCuotaToFcEvent) : [];
+    const manualEvents = Array.isArray(eventsRes) ? eventsRes.map(mapCalendarEventToFcEvent) : [];
+
+    setEvents([...cuotas, ...manualEvents]);
+  } catch (e) {
+    setCalendarError(e.message || "No se pudieron cargar los eventos");
+    setEvents([]);
+  } finally {
+    setCalendarLoading(false);
+  }
+}, []);
 
   const [chats, setChats] = useState({
     1: [
@@ -222,7 +260,24 @@ export default function CobranzaPage() {
         return;
       }
     } else {
+      const calendarEventId = eventToDelete.extendedProps?.calendarEventId;
+
+    if (calendarEventId) {
+      try {
+        await fetchJson(`${API_URL}/calendar/events/${calendarEventId}`, {
+          method: "DELETE",
+        });
+    
+        if (lastCalendarDateRef.current) {
+          await loadCuotasForView(lastCalendarDateRef.current);
+        }
+      } catch (e) {
+        window.alert(e.message || "Error al eliminar");
+        return;
+      }
+    } else {
       setEvents(events.filter((e) => e.id !== eventToDelete.id));
+    }
     }
     setDeleteModal(false);
     setEventToDelete(null);
@@ -236,10 +291,14 @@ export default function CobranzaPage() {
       id: ev.id,
       cuotaId: ext.cuotaId ?? null,
       title: ev.title,
-      start: startDay,
+      start: ev.startStr ? ev.startStr.slice(0, 16) : "",
       color: ev.backgroundColor || "#2563eb",
       monto: ext.montoRaw != null ? String(ext.montoRaw) : "",
       estatus: ext.estatus ?? "pendiente",
+      calendarEventId: ext.calendarEventId ?? null,
+      type: ext.type ?? "follow_up",
+      priority: ext.priority ?? "medium",
+      status: ext.status ?? "pending",
     });
     setEditModal(true);
     setContextMenu(null);
@@ -265,13 +324,27 @@ export default function CobranzaPage() {
         return;
       }
     } else {
-      setEvents(
-        events.map((e) =>
-          e.id === editingEvent.id
-            ? { ...e, title: editingEvent.title, color: editingEvent.color }
-            : e
-        )
-      );
+      try {
+      await fetchJson(`${API_URL}/calendar/events/${editingEvent.calendarEventId}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          title: editingEvent.title,
+          starts_at: editingEvent.start,
+          ends_at: "",
+          color: editingEvent.color,
+          type: editingEvent.type,
+          priority: editingEvent.priority,
+          status: editingEvent.status,
+        }),
+      });
+    
+      if (lastCalendarDateRef.current) {
+        await loadCuotasForView(lastCalendarDateRef.current);
+      }
+    } catch (e) {
+      window.alert(e.message || "Error al guardar");
+      return;
+    }
     }
     setEditModal(false);
   };
@@ -312,27 +385,41 @@ Si tienes alguna duda estoy para ayudarte.`;
     setMessage("");
   };
 
-  const createEvent = () => {
-    if (!newDate || !newCliente) return;
+  const createEvent = async () => {
+  if (!newDate || !newCliente) return;
 
-    const newEvent = {
-      id: Date.now(),
-      title: `${newTitle || "Recordatorio"} - ${newCliente.nombre}`,
-      start: newDate,
-      color: newColor,
-      clienteId: newCliente.id,
-      extendedProps: {
-        cliente: newCliente.nombre,
-        monto: newCliente.monto
-      }
-    };
+  try {
+    await fetchJson(`${API_URL}/calendar/events`, {
+      method: "POST",
+      body: JSON.stringify({
+        title: `${newTitle || "Recordatorio"} - ${newCliente.nombre}`,
+        description: `Cliente: ${newCliente.nombre}
+        Póliza: ${newCliente.poliza}
+        Monto: ${newCliente.monto}`,
+        starts_at: newDate,
+        ends_at: "",
+        color: newColor,
+        type: newType === "task" ? taskCategory : newType,
+        priority: newPriority,
+        status: newStatus,
+        meeting_provider: newType === "meeting" ? "google_meet" : null,
+        attendee_name: newCliente?.nombre || null,
+        attendee_email: newCliente?.email || null,
+      }),
+    });
 
-    setEvents([...events, newEvent]);
+    if (lastCalendarDateRef.current) {
+      await loadCuotasForView(lastCalendarDateRef.current);
+    }
+
     setCreateModal(false);
     setNewTitle("");
     setNewDate("");
     setNewCliente(null);
-  };
+  } catch (e) {
+    alert(e.message || "Error al crear recordatorio");
+  }
+};
   
   const toggleTask = (id) => {
     setTasks(tasks.map(task =>
@@ -355,25 +442,51 @@ Si tienes alguna duda estoy para ayudarte.`;
   };
 
   // Renderizado personalizado para eventos en vista mes - CORREGIDO
+  
   const renderEventContent = (eventInfo) => {
-    const isAllDay = !eventInfo.timeText;
-    const timeText = eventInfo.timeText || "Todo el día";
-    
-    return (
-      <div className="cobranza-event-card">
-        {!isAllDay && (
-          <div className="cobranza-event-time">
-            {timeText}
-          </div>
-        )}
-        <div className="cobranza-event-title" title={eventInfo.event.title}>
-          {eventInfo.event.title}
-        </div>
-      </div>
-    );
-  };
+  const isAllDay = !eventInfo.timeText;
+  const timeText = eventInfo.timeText || "Todo el día";
 
   return (
+    <div className="cobranza-event-card">
+      {!isAllDay && (
+        <div className="cobranza-event-time">
+          {timeText}
+        </div>
+      )}
+      <div className="cobranza-event-title" title={eventInfo.event.title}>
+        {eventInfo.event.title}
+      </div>
+    </div>
+  );
+};
+
+const addOneHour = (dateStr) => {
+  if (!dateStr) return "";
+
+  const d = new Date(dateStr);
+  d.setHours(d.getHours() + 1);
+
+  return d.toISOString().slice(0, 16);
+};
+
+const meetingPreviewEvents = [
+  ...events,
+  ...(newType === "meeting" && newDate
+    ? [
+        {
+          id: "preview-meeting",
+          title: newTitle || "Nueva reunión",
+          start: newDate,
+          end: addOneHour(newDate),
+          backgroundColor: "#2563eb",
+          borderColor: "#2563eb",
+        },
+      ]
+    : []),
+];
+
+return (
     <div className="cobranza-container">
       <Sidebar onExpand={setIsSidebarExpanded} />
 
@@ -399,11 +512,11 @@ Si tienes alguna duda estoy para ayudarte.`;
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => setCreateModal(true)}
+                onClick={() => setActivityTypeModal(true)}
                 className="cobranza-btn-primary"
               >
                 <Plus size={18} />
-                <span>Nuevo Recordatorio</span>
+                <span>Nueva actividad</span>
               </motion.button>
               
               <motion.button
@@ -442,6 +555,7 @@ Si tienes alguna duda estoy para ayudarte.`;
                   events={events}
                   height="100%"
                   locale={esLocale}
+                  timeZone="local"
                   slotMinTime="08:00:00"
                   slotMaxTime="20:00:00"
                   allDaySlot={true}
@@ -771,111 +885,392 @@ Si tienes alguna duda estoy para ayudarte.`;
         )}
       </AnimatePresence>
 
-      {/* Modal de Crear Recordatorio */}
       <AnimatePresence>
-        {createModal && (
-          <div className="cobranza-modal-overlay" onClick={() => setCreateModal(false)}>
-            <motion.div
-              className="cobranza-modal"
-              onClick={(e) => e.stopPropagation()}
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+  {activityTypeModal && (
+    <div className="cobranza-modal-overlay" onClick={() => setActivityTypeModal(false)}>
+      <motion.div
+        className="cobranza-activity-modal"
+        onClick={(e) => e.stopPropagation()}
+        initial={{ scale: 0.95, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.95, opacity: 0, y: 20 }}
+      >
+        <div className="cobranza-activity-header">
+          <h2>¿Qué tipo de actividad vas a crear?</h2>
+          <p>
+            Tu agenda es tu mejor amiga. Marca cada actividad como completada
+            y mantén tu seguimiento al día.
+          </p>
+        </div>
+
+        <div className="cobranza-activity-options">
+          <button
+            type="button"
+            className={`cobranza-activity-row ${selectedActivityType === "task" ? "active" : ""}`}
+            onClick={() => setSelectedActivityType("task")}
+          >
+            <div className="cobranza-activity-icon"><ClipboardList size={22} /></div>
+            <div className="cobranza-activity-text">
+              <strong>Tarea</strong>
+              <p>Planificar, llamar, contactar o registrar pendientes.</p>
+            </div>
+            <span className="cobranza-activity-radio" />
+          </button>
+
+          <button
+            type="button"
+            className={`cobranza-activity-row ${selectedActivityType === "meeting" ? "active" : ""}`}
+            onClick={() => setSelectedActivityType("meeting")}
+          >
+            <div className="cobranza-activity-icon"><Users size={22} /></div>
+            <div className="cobranza-activity-text">
+              <strong>Reunión</strong>
+              <p>Agenda reuniones online o presenciales con clientes.</p>
+            </div>
+            <span className="cobranza-activity-radio" />
+          </button>
+        </div>
+
+        <div className="cobranza-activity-footer">
+          <button
+            className="cobranza-activity-cancel"
+            onClick={() => setActivityTypeModal(false)}
+          >
+            Cancelar
+          </button>
+
+          <button
+            className="cobranza-activity-confirm"
+            disabled={!selectedActivityType}
+            onClick={() => {
+              setNewType(selectedActivityType);
+              setActivityTypeModal(false);
+            
+              if (selectedActivityType === "meeting") {
+                setNewTitle("");
+                setNewColor("#2563eb");
+              }
+            
+              setCreateModal(true);
+            }}
+          >
+            Confirmar
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  )}
+</AnimatePresence>
+
+   
+ 
+      {/* Modal de Crear Actividad */}
+<AnimatePresence>
+  {createModal && newType === "task" && (
+    <div className="gsea-task-overlay" onClick={() => setCreateModal(false)}>
+      <motion.div
+        className="gsea-task-drawer"
+        onClick={(e) => e.stopPropagation()}
+        initial={{ x: "100%" }}
+        animate={{ x: 0 }}
+        exit={{ x: "100%" }}
+        transition={{ type: "spring", damping: 28, stiffness: 260 }}
+      >
+        <div className="gsea-task-drawer-header">
+          <h2>Agregar tarea</h2>
+          <button onClick={() => setCreateModal(false)}>
+            <X size={22} />
+          </button>
+        </div>
+
+        <div className="gsea-task-tabs">
+          <button className="active">Configuración</button>
+          <button>Recordatorios</button>
+        </div>
+
+        <div className="gsea-task-body">
+          
+
+          <div className="gsea-task-row">
+            <label>Tipo</label>
+            <select
+              value={taskCategory}
+              onChange={(e) => {
+                setTaskCategory(e.target.value);
+          
+                if (e.target.value === "collection") {
+                  setNewColor("#f59e0b");
+                  setNewTitle("Cobranza");
+                }
+          
+                if (e.target.value === "renewal") {
+                  setNewColor("#7c3aed");
+                  setNewTitle("Renovación");
+                }
+          
+                if (e.target.value === "follow_up") {
+                  setNewColor("#2563eb");
+                  setNewTitle("Seguimiento");
+                }
+              }}
             >
-              <div className="cobranza-modal-header">
-                
-                <h2 className="cobranza-modal-title">Nuevo Recordatorio</h2>
-                <button className="cobranza-modal-close" onClick={() => setCreateModal(false)}>
-                  <X size={20} />
-                </button>
-              </div>
-
-              <div className="cobranza-modal-form">
-                <div className="cobranza-form-group">
-                  <label>Título (opcional)</label>
-                  <input
-                    type="text"
-                    value={newTitle}
-                    onChange={(e) => setNewTitle(e.target.value)}
-                    placeholder="Ej: Llamar, Revisar, Cobrar..."
-                  />
-                </div>
-
-                <div className="cobranza-form-group">
-                  <label>Cliente</label>
-                  <select
-                    value={newCliente?.id || ""}
-                    onChange={(e) => setNewCliente(CLIENTES_DATA.find(c => c.id === parseInt(e.target.value)))}
-                  >
-                    <option value="">Seleccionar cliente</option>
-                    {CLIENTES_DATA.map(c => (
-                      <option key={c.id} value={c.id}>{c.nombre}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {newCliente && (
-                  <motion.div 
-                    className="cobranza-cliente-preview"
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                  >
-                    <div className="cobranza-preview-item">
-                      <FileText size={14} />
-                      <span>{newCliente.poliza}</span>
-                    </div>
-                    <div className="cobranza-preview-item">
-                      <DollarSign size={14} />
-                      <span>{newCliente.monto}</span>
-                    </div>
-                  </motion.div>
-                )}
-
-                <div className="cobranza-form-group">
-                  <label>Fecha y hora</label>
-                  <input
-                    type="datetime-local"
-                    value={newDate}
-                    onChange={(e) => setNewDate(e.target.value)}
-                  />
-                </div>
-
-                <div className="cobranza-form-group">
-                  <label>Color</label>
-                  <div className="cobranza-color-picker">
-                    <input
-                      type="color"
-                      value={newColor}
-                      onChange={(e) => setNewColor(e.target.value)}
-                    />
-                    <span>{newColor}</span>
-                  </div>
-                </div>
-
-                <div className="cobranza-modal-actions">
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="cobranza-btn-cancel"
-                    onClick={() => setCreateModal(false)}
-                  >
-                    Cancelar
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="cobranza-btn-save"
-                    onClick={createEvent}
-                    disabled={!newDate || !newCliente}
-                  >
-                    Crear Recordatorio
-                  </motion.button>
-                </div>
-              </div>
-            </motion.div>
+              <option value="follow_up">Seguimiento</option>
+              <option value="collection">Cobranza</option>
+              <option value="renewal">Renovación</option>
+              <option value="task">Tarea general</option>
+            </select>
           </div>
-        )}
-      </AnimatePresence>
+
+
+          <div className="gsea-task-row">
+            <label>Nombre</label>
+            <input
+              type="text"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              placeholder="Nombre de la tarea"
+            />
+          </div>
+
+          <div className="gsea-task-row">
+            <label>Cliente</label>
+            <select
+              value={newCliente?.id || ""}
+              onChange={(e) =>
+                setNewCliente(CLIENTES_DATA.find(c => c.id === parseInt(e.target.value)))
+              }
+            >
+              <option value="">Seleccionar cliente</option>
+              {CLIENTES_DATA.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.nombre} · {c.poliza}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="gsea-task-row">
+            <label>Prioridad</label>
+            <select value={newPriority} onChange={(e) => setNewPriority(e.target.value)}>
+              <option value="low">Baja</option>
+              <option value="medium">Media</option>
+              <option value="high">Alta</option>
+              <option value="urgent">Urgente</option>
+            </select>
+          </div>
+
+          <div className="gsea-task-row">
+            <label>Fecha</label>
+            <input
+              type="datetime-local"
+              value={newDate}
+              onChange={(e) => setNewDate(e.target.value)}
+            />
+          </div>
+
+          <label className="gsea-task-checkbox">
+            <input type="checkbox" />
+            <span>Todo el día</span>
+          </label>
+
+          <div className="gsea-task-row">
+            <label>Descripción</label>
+            <textarea
+              rows="5"
+              placeholder="Agrega una descripción..."
+            />
+          </div>
+        </div>
+
+        <div className="gsea-task-footer">
+          <button className="gsea-related-btn">
+            Relacionado con <strong>0</strong>
+          </button>
+
+          <div>
+            <button className="gsea-task-cancel" onClick={() => setCreateModal(false)}>
+              Cancelar
+            </button>
+
+            <button
+              className="gsea-task-save"
+              onClick={createEvent}
+              disabled={!newDate || !newCliente}
+            >
+              Guardar
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  )}
+</AnimatePresence>
+
+
+<AnimatePresence>
+  {createModal && newType === "meeting" && (
+    <div className="gsea-meeting-overlay" onClick={() => setCreateModal(false)}>
+      <motion.div
+        className="gsea-meeting-modal"
+        onClick={(e) => e.stopPropagation()}
+        initial={{ scale: 0.98, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.98, opacity: 0 }}
+      >
+        <div className="gsea-meeting-left">
+          <div className="gsea-task-drawer-header">
+            <h2>Programar Reunión</h2>
+            <button onClick={() => setCreateModal(false)}>
+              <X size={22} />
+            </button>
+          </div>
+
+          <div className="gsea-task-tabs">
+            <button className="active">Configuración</button>
+          </div>
+
+          <div className="gsea-task-body">
+            <div className="gsea-meeting-row-2">
+              <div className="gsea-task-row single">
+                <label>Título</label>
+                <input
+                  type="text"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  placeholder="Título de la reunión"
+                />
+              </div>
+
+              <div className="gsea-task-row single">
+                <label>Prioridad</label>
+                <select value={newPriority} onChange={(e) => setNewPriority(e.target.value)}>
+                  <option value="low">Baja</option>
+                  <option value="medium">Media</option>
+                  <option value="high">Alta</option>
+                  <option value="urgent">Urgente</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="gsea-task-row single">
+              <label>Cliente / invitado</label>
+              <select
+                value={newCliente?.id || ""}
+                onChange={(e) => {
+                  const cliente = CLIENTES_DATA.find(c => c.id === parseInt(e.target.value));
+                  setNewCliente(cliente);
+                }}
+              >
+                <option value="">Seleccionar cliente</option>
+                {CLIENTES_DATA.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre} · {c.email}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="gsea-task-row single">
+              <label>Correo invitado</label>
+              <input
+                type="email"
+                value={newCliente?.email || ""}
+                placeholder="cliente@gmail.com"
+                readOnly
+              />
+            </div>
+
+            <div className="gsea-meeting-date-grid">
+              <div className="gsea-task-row single">
+                <label>Fecha</label>
+                <input
+                  type="datetime-local"
+                  value={newDate}
+                  onChange={(e) => setNewDate(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="gsea-meeting-row-2">
+              <div className="gsea-task-row single">
+                <label>Canal</label>
+                <select value="google_meet" disabled>
+                  <option value="google_meet">Google Meet</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="gsea-meet-info">
+              <Calendar size={16} />
+              <span>Se creará automáticamente un enlace de Google Meet y se enviará la invitación al correo del cliente.</span>
+            </div>
+
+            <div className="gsea-task-row single">
+              <label>Descripción</label>
+              <textarea rows="5" placeholder="Agrega una descripción..." />
+            </div>
+          </div>
+        </div>
+
+        <div className="gsea-meeting-right">
+          <h2>Semana 26, Junio 2026</h2>
+          <div className="gsea-meeting-calendar-fake">
+            <div className="gsea-meeting-calendar-toolbar">
+              <button>Día</button>
+              <button className="active">Semana</button>
+              <button>Mes</button>
+              <button>Año</button>
+              <button>Agenda</button>
+            </div>
+
+            <div className="gsea-meeting-calendar-box">
+              <FullCalendar
+                key={newDate ? newDate.slice(0, 10) : "meeting-preview"}
+                plugins={[timeGridPlugin, dayGridPlugin, interactionPlugin]}
+                initialView="timeGridWeek"
+                initialDate={newDate ? newDate.slice(0, 10) : new Date()}
+                events={meetingPreviewEvents}
+                height="100%"
+                locale={esLocale}
+                timeZone="local"
+                headerToolbar={false}
+                allDaySlot={false}
+                slotMinTime="06:00:00"
+                slotMaxTime="22:00:00"
+                slotDuration="00:30:00"
+                eventTimeFormat={{
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: true,
+                }}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="gsea-task-footer gsea-meeting-footer">
+          <button className="gsea-related-btn">
+            Relacionado con <strong>0</strong>
+          </button>
+
+          <div>
+            <button className="gsea-task-cancel" onClick={() => setCreateModal(false)}>
+              Cancelar
+            </button>
+
+            <button
+              className="gsea-task-save"
+              onClick={createEvent}
+              disabled={!newDate || !newCliente}
+            >
+              Guardar
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  )}
+</AnimatePresence>
 
       {/* Modal de Chat */}
       <AnimatePresence>

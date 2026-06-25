@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { API_URL, TOKEN_KEY } from '../utils/constants';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import WorkspaceSwitcher from './WorkspaceSwitcher';
 import TrialBanner from './TrialBanner';
 import { 
   Bell, Settings, X, Bug, UserPlus, 
   Moon, Languages, Smartphone, ChevronRight,
-  CreditCard, Box, Camera, ShieldCheck
+  CreditCard, Box, Camera, ShieldCheck, Plug
 } from 'lucide-react';
 
 // --- SUB-COMPONENTES AUXILIARES ---
@@ -73,6 +74,7 @@ function ModuleRow({ icon, title, subtitle, badge, color }) {
 // --- COMPONENTE PRINCIPAL ---
 export default function UserNavbar() {
   const { user, role, subscription, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
 
   const [activePanel, setActivePanel] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -300,6 +302,14 @@ export default function UserNavbar() {
                     <span>Seguridad</span>
                     <ShieldCheck size={16} />
                   </div>
+
+                  <button
+                   onClick={() => navigate('/integraciones')}
+                   className="flex justify-between items-center w-full"
+                 >
+                   <span>Integraciones</span>
+                   <Plug size={16} />
+                 </button>
 
                 </div>
               )}

@@ -20,6 +20,7 @@ import Capacitacion from './components/Capacitacion';
 import TeamSettings from './components/TeamSettings';
 import RolesEditor from './components/RolesEditor';
 import BillingSettings from './components/BillingSettings';
+import IntegrationsPage from './components/IntegrationsPage';
 
 import './components/css/SaaS.css';
 
@@ -60,6 +61,7 @@ export default function App() {
       <Route path="/configuracion/equipo" element={<AppWithAuth><TeamSettings /></AppWithAuth>} />
       <Route path="/configuracion/roles" element={<AppWithAuth><RolesEditor /></AppWithAuth>} />
       <Route path="/configuracion/facturacion" element={<AppWithAuth><BillingSettings /></AppWithAuth>} />
+      <Route path="/integraciones" element={<AppWithAuth><IntegrationsPage /></AppWithAuth>} />
 
       <Route path="*" element={<Navigate to="/landing" replace />} />
     </Routes>
