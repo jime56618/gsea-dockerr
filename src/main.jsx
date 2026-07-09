@@ -5,16 +5,16 @@ import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.jsx'
 
+const basename = window.location.hostname.includes('github.io')
+  ? '/gsea-dockerr'
+  : '';
+
 const redirect = sessionStorage.redirect;
 
 if (redirect) {
   delete sessionStorage.redirect;
-  window.history.replaceState(null, '', basename + redirect);
+  window.history.replaceState(null, '', redirect);
 }
-
-const basename = window.location.hostname.includes('github.io')
-  ? '/gsea-dockerr'
-  : '/';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
