@@ -6,14 +6,19 @@ import './index.css'
 import App from './App.jsx'
 
 const redirect = sessionStorage.redirect;
+
 if (redirect) {
   delete sessionStorage.redirect;
-  window.history.replaceState(null, null, redirect);
+  window.history.replaceState(null, '', redirect);
 }
+
+const basename = window.location.hostname.includes('github.io')
+  ? '/gsea-dockerr'
+  : '/';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename={basename}>
       <App />
     </BrowserRouter>
   </StrictMode>,
