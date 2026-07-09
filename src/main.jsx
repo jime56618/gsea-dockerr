@@ -9,7 +9,7 @@ const redirect = sessionStorage.redirect;
 
 if (redirect) {
   delete sessionStorage.redirect;
-  window.history.replaceState(null, '', redirect);
+  window.history.replaceState(null, '', basename + redirect);
 }
 
 const basename = window.location.hostname.includes('github.io')
