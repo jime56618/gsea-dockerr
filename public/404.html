@@ -1,0 +1,12 @@
+<script>
+  const path = window.location.pathname;
+  const repo = "/gsea-dockerr";
+
+  if (path.startsWith(repo)) {
+    sessionStorage.redirect = path.replace(repo, "") + window.location.search + window.location.hash;
+    window.location.replace(repo + "/");
+  } else {
+    sessionStorage.redirect = path + window.location.search + window.location.hash;
+    window.location.replace("/");
+  }
+</script>
