@@ -1,4 +1,5 @@
 import React, { useState, useMemo, Fragment, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
@@ -69,6 +70,8 @@ const SeguimientoCobranza = () => {
   const [currentRegistro, setCurrentRegistro] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
+  const location = useLocation();
+  const [focusedCuotaId, setFocusedCuotaId] = useState(null);
 
   const loadRegistros = useCallback(async () => {
     setLoadError('');
@@ -89,6 +92,16 @@ const SeguimientoCobranza = () => {
   useEffect(() => {
     loadRegistros();
   }, [loadRegistros]);
+
+  useEffect(() => {
+    const cuotaId = location.state?.cuotaId;
+    if (!cuotaId || !registros.length) return;
+    const target = registros.find((registro) => String(registro.id) === String(cuotaId));
+    if (!target) return;
+    setFocusedCuotaId(target.id);
+    setSearchTerm(target.poliza);
+    setCurrentPage(1);
+  }, [location.state, registros]);
 
   const filteredRegistros = useMemo(() => {
     const q = searchTerm.toLowerCase();
@@ -285,7 +298,8 @@ const SeguimientoCobranza = () => {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.05 }}
-                      className="cobranza-table-row"
+                      className={`cobranza-table-row ${focusedCuotaId === reg.id ? 'is-dashboard-focused' : ''}`}
+                      id={`cobranza-cuota-${reg.id}`}
                     >
                       <td className="cobranza-cell-poliza">
                         <span className="cobranza-badge-poliza">{reg.poliza}</span>

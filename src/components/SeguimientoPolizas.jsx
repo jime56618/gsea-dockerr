@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import {
@@ -115,6 +116,7 @@ const SeguimientoPolizas = () => {
   const [filterEstatus, setFilterEstatus] = useState('Todos');
   const [modalType, setModalType] = useState(null);
   const [selectedPoliza, setSelectedPoliza] = useState(null);
+  const location = useLocation();
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
 
@@ -164,6 +166,16 @@ const SeguimientoPolizas = () => {
   useEffect(() => {
     loadPolizas();
   }, [loadPolizas]);
+
+  useEffect(() => {
+    const polizaId = location.state?.polizaId;
+    if (!polizaId || !polizas.length) return;
+    const target = polizas.find((poliza) => String(poliza.id) === String(polizaId));
+    if (target) {
+      setSelectedPoliza(target);
+      setModalType('edit');
+    }
+  }, [location.state, polizas]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -346,6 +358,7 @@ const SeguimientoPolizas = () => {
                       <tr
                         key={poliza.id}
                         className="polizas-row"
+                        id={`poliza-${poliza.id}`}
                         style={{ animationDelay: `${index * 0.05}s` }}
                       >
                         <td className="polizas-cell polizas-cell-numero">

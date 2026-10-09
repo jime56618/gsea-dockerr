@@ -58,7 +58,7 @@ export default function BillingSettings() {
 
   if (!can('billing.manage')) {
     return (
-      <PageLayout>
+      <PageLayout variant="config">
         <div className="gsea-config-empty">
           <Lock size={40} className="gsea-config-empty__icon" />
           <p>No tienes permiso para ver facturación.</p>
@@ -68,22 +68,27 @@ export default function BillingSettings() {
   }
 
   return (
-    <PageLayout>
-      <ConfigPageHeader
-        icon={CreditCard}
-        title="Facturación"
-        subtitle={`Suscripción y plan de ${currentWorkspace?.nombre || 'tu promotoría'}.`}
-      />
+    <PageLayout variant="config">
+      <section className="gsea-config-screen">
+        <ConfigPageHeader
+          icon={CreditCard}
+          title="Facturación"
+          subtitle={`Suscripción y plan de ${currentWorkspace?.nombre || 'tu promotoría'}.`}
+        />
 
-      {loading ? (
-        <p className="gsea-config-loading">Cargando información de facturación…</p>
-      ) : (
-        <>
-          <div className="gsea-config-grid gsea-config-grid--3">
+        {loading ? (
+          <p className="gsea-config-loading">Cargando información de facturación…</p>
+        ) : (
+          <>
+            <div className="gsea-config-grid gsea-config-grid--3">
             <div className="gsea-stat-card">
               <span className="gsea-stat-card__label">Estado</span>
               <p className="gsea-stat-card__value gsea-stat-card__value--sm">
-                {sub?.status === 'trialing' ? 'Periodo de prueba' : sub?.status || '—'}
+                {sub?.status === 'trialing'
+                  ? 'Periodo de prueba'
+                  : sub?.status === 'active'
+                    ? 'Activo'
+                    : sub?.status || '—'}
               </p>
               <StatusBadge accessible={sub?.is_accessible} status={sub?.status} />
             </div>
@@ -100,50 +105,51 @@ export default function BillingSettings() {
                 <p className="gsea-stat-card__hint">${sub.plan.precio_mensual}/mes</p>
               </div>
             )}
-          </div>
+            </div>
 
-          {sub?.usage && (
-            <div className="gsea-card gsea-card--section">
-              <h2 className="gsea-card__title">Uso del workspace</h2>
-              <div className="gsea-usage-grid">
-                <div className="gsea-usage-item">
-                  <Users size={20} />
-                  <span>{sub.usage.users} usuarios</span>
-                </div>
-                <div className="gsea-usage-item">
-                  <FileText size={20} />
-                  <span>{sub.usage.polizas} pólizas</span>
-                </div>
-                <div className="gsea-usage-item">
-                  <UserCheck size={20} />
-                  <span>{sub.usage.agentes} agentes</span>
+            {sub?.usage && (
+              <div className="gsea-card gsea-card--section">
+                <h2 className="gsea-card__title">Uso del workspace</h2>
+                <div className="gsea-usage-grid">
+                  <div className="gsea-usage-item">
+                    <Users size={20} />
+                    <span>{sub.usage.users} usuarios</span>
+                  </div>
+                  <div className="gsea-usage-item">
+                    <FileText size={20} />
+                    <span>{sub.usage.polizas} pólizas</span>
+                  </div>
+                  <div className="gsea-usage-item">
+                    <UserCheck size={20} />
+                    <span>{sub.usage.agentes} agentes</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          <div className="gsea-card gsea-card--section">
-            {msg && (
-              <p className={msg.includes('correctamente') ? 'gsea-msg gsea-msg--ok' : 'gsea-msg gsea-msg--error'}>
-                {msg}
-              </p>
-            )}
-            {(sub?.is_locked || !sub?.is_accessible) && (
-              <button
-                type="button"
-                className="gsea-btn-primary gsea-btn-primary--lg"
-                disabled={activating}
-                onClick={handleActivate}
-              >
-                {activating ? 'Procesando…' : 'Activar plan (demo sin Stripe)'}
-              </button>
-            )}
-            {sub?.is_accessible && !sub?.is_locked && (
-              <p className="gsea-config-muted">Tu suscripción está activa. Integración con Stripe pendiente.</p>
-            )}
-          </div>
-        </>
-      )}
+            <div className="gsea-card gsea-card--section">
+              {msg && (
+                <p className={msg.includes('correctamente') ? 'gsea-msg gsea-msg--ok' : 'gsea-msg gsea-msg--error'}>
+                  {msg}
+                </p>
+              )}
+              {(sub?.is_locked || !sub?.is_accessible) && (
+                <button
+                  type="button"
+                  className="gsea-btn-primary gsea-btn-primary--lg"
+                  disabled={activating}
+                  onClick={handleActivate}
+                >
+                  {activating ? 'Procesando…' : 'Activar plan (demo sin Stripe)'}
+                </button>
+              )}
+              {sub?.is_accessible && !sub?.is_locked && (
+                <p className="gsea-config-muted">Tu suscripción está activa. Integración con Stripe pendiente.</p>
+              )}
+            </div>
+          </>
+        )}
+      </section>
     </PageLayout>
   );
 }

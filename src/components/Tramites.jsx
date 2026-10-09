@@ -1,4 +1,5 @@
 import React, { useState, useMemo, Fragment, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
 import {
@@ -62,6 +63,7 @@ const Tramites = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
+  const location = useLocation();
   const [currentPage, setCurrentPage] = useState(1);
   const [filterStatus, setFilterStatus] = useState('todos');
   const [itemsPerPage, setItemsPerPage] = useState(5);
@@ -197,6 +199,13 @@ const Tramites = () => {
     });
     setIsEditModalOpen(true);
   };
+
+  useEffect(() => {
+    const tramiteId = location.state?.tramiteId;
+    if (!tramiteId || !data.length) return;
+    const target = data.find((item) => String(item.id) === String(tramiteId));
+    if (target) handleEditClick(target);
+  }, [location.state, data]);
 
   const handleSaveEdit = async (e) => {
     e.preventDefault();
@@ -392,6 +401,7 @@ const Tramites = () => {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
                         className="tramites-table-row"
+                        id={`tramite-${item.id}`}
                       >
                         <td className="tramites-folio-cell">
                           <span className="tramites-folio-badge">{item.folio}</span>

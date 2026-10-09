@@ -7,7 +7,7 @@ import './css/PageLayout.css';
  * Layout estándar GSEA: sidebar izquierdo + navbar + contenido.
  * Misma estructura que Dashboard / Agentes / Clientes.
  */
-export default function PageLayout({ children }) {
+export default function PageLayout({ children, variant }) {
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
 
   return (
@@ -16,7 +16,7 @@ export default function PageLayout({ children }) {
       <div
         className={`gsea-layout-main ${
           isSidebarExpanded ? 'gsea-layout-main--expanded' : 'gsea-layout-main--collapsed'
-        }`}
+        } ${variant ? `gsea-layout-main--${variant}` : ''}`}
       >
         <Navbar />
         <main className="gsea-layout-content">{children}</main>

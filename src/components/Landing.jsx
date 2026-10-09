@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import PhoneInput, { parsePhoneNumber } from "react-phone-number-input";
+import "react-phone-number-input/style.css";
 import SplitText from "../Animacion/SplitText";
 import ScrollReveal from "../Animacion/ScrollReveal";
 import dashboardImg from "../assets/images/Hero.png";
@@ -96,12 +98,84 @@ const plans = [
 const GSeaLanding = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [heroEmail, setHeroEmail] = useState("");
+  const [demoForm, setDemoForm] = useState({
+    nombre_completo: "",
+    correo: "",
+    telefono: "",
+    promotoria: "",
+    necesidades: "",
+  });
+  const [demoLoading, setDemoLoading] = useState(false);
+  const [demoSuccess, setDemoSuccess] = useState("");
+  const [demoError, setDemoError] = useState("");
 
   const closeMenu = () => setMenuOpen(false);
 
   const handleHeroLead = (event) => {
     event.preventDefault();
     document.querySelector("#precios")?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const handleDemoChange = (event) => {
+    const { name, value } = event.target;
+    setDemoForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleDemoSubmit = async (event) => {
+    event.preventDefault();
+    setDemoLoading(true);
+    setDemoSuccess("");
+    setDemoError("");
+
+    try {
+      const parsedPhone = parsePhoneNumber(demoForm.telefono);
+
+      if (!parsedPhone) {
+        throw new Error("Ingresa un número de teléfono válido.");
+      }
+
+      const payload = {
+        nombre_completo: demoForm.nombre_completo,
+        correo: demoForm.correo,
+        codigo_pais: `+${parsedPhone.countryCallingCode}`,
+        telefono: parsedPhone.nationalNumber,
+        promotoria: demoForm.promotoria,
+        necesidades: demoForm.necesidades,
+      };
+
+      const apiBase = (import.meta.env.VITE_API_URL || "http://localhost/api").replace(/\/$/, "");
+      const response = await fetch(`${apiBase}/demo-requests`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        const firstValidationError = data.errors
+          ? Object.values(data.errors).flat()[0]
+          : null;
+        throw new Error(firstValidationError || data.message || "No se pudo enviar la solicitud.");
+      }
+
+      setDemoSuccess("¡Solicitud enviada correctamente!");
+      setDemoForm({
+        nombre_completo: "",
+        correo: "",
+        telefono: "",
+        promotoria: "",
+        necesidades: "",
+      });
+    } catch (error) {
+      console.error("Error al solicitar demo:", error);
+      setDemoError(error.message || "Ocurrió un error al enviar tu solicitud.");
+    } finally {
+      setDemoLoading(false);
+    }
   };
 
   return (
@@ -374,45 +448,98 @@ const GSeaLanding = () => {
         
                 <form
                   className="gsea-contact-form"
-                  onSubmit={(event) => event.preventDefault()}
+                  onSubmit={handleDemoSubmit}
                 >
                   <div className="gsea-form-grid">
                     <input
                       type="text"
+                      name="nombre_completo"
                       placeholder="Nombre completo"
                       aria-label="Nombre completo"
+                      value={demoForm.nombre_completo}
+                      onChange={handleDemoChange}
+                      required
                     />
-        
+
                     <input
                       type="email"
+                      name="correo"
                       placeholder="Correo electrónico"
                       aria-label="Correo electrónico"
+                      value={demoForm.correo}
+                      onChange={handleDemoChange}
+                      required
                     />
-        
-                    <input
-                      type="tel"
-                      placeholder="Teléfono / WhatsApp"
-                      aria-label="Teléfono o WhatsApp"
-                    />
-        
+
+                    <div className="gsea-phone-field">
+                      <PhoneInput
+                        international
+                        defaultCountry="MX"
+                        placeholder="Teléfono / WhatsApp"
+                        value={demoForm.telefono}
+                        onChange={(value) =>
+                          setDemoForm((prev) => ({ ...prev, telefono: value || "" }))
+                        }
+                        required
+                      />
+                    </div>
+
                     <input
                       type="text"
+                      name="promotoria"
                       placeholder="Nombre de tu promotoría"
                       aria-label="Nombre de tu promotoría"
+                      value={demoForm.promotoria}
+                      onChange={handleDemoChange}
                     />
                   </div>
-        
+
                   <textarea
+                    name="necesidades"
                     placeholder="Cuéntanos brevemente sobre tu equipo y necesidades…"
                     aria-label="Mensaje"
+                    value={demoForm.necesidades}
+                    onChange={handleDemoChange}
                   />
-        
+
+                  {demoSuccess && (
+                    <div
+                      role="status"
+                      aria-live="polite"
+                      style={{
+                        padding: "16px 18px",
+                        marginTop: "16px",
+                        marginBottom: "16px",
+                        borderRadius: "12px",
+                        background: "#ecfdf3",
+                        border: "1px solid #86efac",
+                        color: "#166534",
+                        fontSize: "15px",
+                        lineHeight: "1.5",
+                      }}
+                    >
+                      <strong>✓ {demoSuccess}</strong>
+                      <div style={{ marginTop: "4px" }}>
+                        Recibimos tus datos. Nos pondremos en contacto contigo muy pronto.
+                      </div>
+                    </div>
+                  )}
+
+                  {demoError && (
+                    <p className="gsea-form-message gsea-form-message--error">{demoError}</p>
+                  )}
+
                   <button
                     type="submit"
                     className="gsea-button gsea-button--full"
+                    disabled={demoLoading}
                   >
-                    Solicitar demo
-                    <ArrowRight size={18} />
+                    {demoLoading ? "Enviando..." : (
+                      <>
+                        Solicitar demo
+                        <ArrowRight size={18} />
+                      </>
+                    )}
                   </button>
                 </form>
               </div>

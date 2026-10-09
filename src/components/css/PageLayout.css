@@ -28,6 +28,10 @@
   margin-left: 88px;
 }
 
+.gsea-layout-main--config {
+  margin-left: 0;
+}
+
 .gsea-layout-content {
   flex: 1;
   padding: 0 1.5rem 2.5rem;
@@ -35,14 +39,38 @@
   width: 100%;
 }
 
+.gsea-layout-main--config .gsea-layout-content {
+  max-width: 1500px;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.gsea-config-screen {
+  width: 100%;
+  max-width: 1500px;
+  margin: 0;
+  box-sizing: border-box;
+  padding: 28px 0 40px;
+}
+
 @media (max-width: 768px) {
   .gsea-layout-main--expanded,
-  .gsea-layout-main--collapsed {
+  .gsea-layout-main--collapsed,
+  .gsea-layout-main--config {
     margin-left: 0 !important;
   }
 
   .gsea-layout-content {
     padding: 0 1rem 2rem;
+  }
+
+  .gsea-layout-main--config .gsea-layout-content {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .gsea-config-screen {
+    padding: 20px 0 30px;
   }
 }
 

@@ -78,7 +78,7 @@ export default function TeamSettings() {
 
   if (!can('users.invite')) {
     return (
-      <PageLayout>
+      <PageLayout variant="config">
         <div className="gsea-config-empty">
           <Users size={40} className="gsea-config-empty__icon" />
           <p>No tienes permiso para gestionar invitaciones.</p>
@@ -92,8 +92,8 @@ export default function TeamSettings() {
   const acceptedCount = list.filter((i) => i.used).length;
 
   return (
-    <PageLayout>
-      <section className="gsea-team-page">
+    <PageLayout variant="config">
+      <section className="gsea-team-page gsea-config-screen">
         <ConfigPageHeader
           title="Equipo e invitaciones"
           subtitle={`Invita colaboradores a ${
